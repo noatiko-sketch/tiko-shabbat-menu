@@ -1,0 +1,64 @@
+{
+  "anchor": "2026-09-26",
+  "anchorWeek": 1,
+  "menus": [
+    {
+      "saturday": "2026-10-10",
+      "week": 3,
+      "friday": {
+        "date": "2026-10-09",
+        "dishes": [
+          {
+            "name": "סלט בוראטה",
+            "category": "salad"
+          },
+          {
+            "name": "סלט ביצים",
+            "category": "salad"
+          },
+          {
+            "name": "כרובית שלמה בתנור",
+            "category": "baked"
+          },
+          {
+            "name": "מרק כתום",
+            "category": "soup"
+          },
+          {
+            "name": "רביולי גבינות",
+            "category": "pasta"
+          },
+          {
+            "name": "פשטידת קישואים וגבינה / גבינות",
+            "category": "pastry"
+          }
+        ]
+      },
+      "lunch": {
+        "date": "2026-10-10",
+        "dishes": [
+          {
+            "name": "סלט ברוקולי",
+            "category": "salad"
+          },
+          {
+            "name": "סלט חסה",
+            "category": "salad"
+          },
+          {
+            "name": "כרובית אפויה עם טחינה",
+            "category": "baked"
+          },
+          {
+            "name": "עוף עם תפוחי אדמה",
+            "category": "main"
+          },
+          {
+            "name": "אורז רגיל",
+            "category": "side"
+          }
+        ]
+      }
+    }
+  ]
+}

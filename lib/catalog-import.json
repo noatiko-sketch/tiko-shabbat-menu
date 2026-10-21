@@ -1,0 +1,603 @@
+[
+  {
+    "name": "מרק כתום",
+    "category": "soup"
+  },
+  {
+    "name": "מרק עדשים",
+    "category": "soup"
+  },
+  {
+    "name": "מרק כרוב",
+    "category": "soup"
+  },
+  {
+    "name": "מרק עגבניות",
+    "category": "soup"
+  },
+  {
+    "name": "מרק קוסקוס / קושקוש",
+    "category": "soup"
+  },
+  {
+    "name": "מרק ירקות",
+    "category": "soup"
+  },
+  {
+    "name": "מרק אפונה",
+    "category": "soup"
+  },
+  {
+    "name": "מרק עוף (עם קניידלך)",
+    "category": "soup"
+  },
+  {
+    "name": "מרק טום יאם",
+    "category": "soup"
+  },
+  {
+    "name": "מרק בצל",
+    "category": "soup"
+  },
+  {
+    "name": "גספאצ'ו (מרק קר בסגנון ספרדי)",
+    "category": "soup"
+  },
+  {
+    "name": "סלט בוראטה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט ביצים",
+    "category": "salad"
+  },
+  {
+    "name": "סלט ברוקולי",
+    "category": "salad"
+  },
+  {
+    "name": "סלט חסה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט עגבניות",
+    "category": "salad"
+  },
+  {
+    "name": "סלט קיסר",
+    "category": "salad"
+  },
+  {
+    "name": "סלט קינואה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט קינואה וכרובית (עם או בלי טחינה)",
+    "category": "salad"
+  },
+  {
+    "name": "סלט ירקות קצוץ / סלט קצוץ",
+    "category": "salad"
+  },
+  {
+    "name": "סלט רוקט חסה וכרוב צלוי",
+    "category": "salad"
+  },
+  {
+    "name": "סלט רוקט עם ארטישוק, עגבניות שרי וזיתי קלמטה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט טונה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט פסטה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט פפאיה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט זוקיני ולאבנה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט דג פרשי",
+    "category": "salad"
+  },
+  {
+    "name": "סלט אטריות שעועית",
+    "category": "salad"
+  },
+  {
+    "name": "סלט רוקט",
+    "category": "salad"
+  },
+  {
+    "name": "סלט קולסלואו",
+    "category": "salad"
+  },
+  {
+    "name": "סלט כרוב צלוי",
+    "category": "salad"
+  },
+  {
+    "name": "סלט קינואה וכרובית עם טחינה",
+    "category": "salad"
+  },
+  {
+    "name": "סלט בטטה וחלומי",
+    "category": "salad"
+  },
+  {
+    "name": "רביולי בטטה",
+    "category": "pasta"
+  },
+  {
+    "name": "רביולי גבינות",
+    "category": "pasta"
+  },
+  {
+    "name": "רביולי גבינות ותרד",
+    "category": "pasta"
+  },
+  {
+    "name": "רביולי גבינות ותרד עם עגבניות",
+    "category": "pasta"
+  },
+  {
+    "name": "רביולי גבינה עם חמאת עגבניות",
+    "category": "pasta"
+  },
+  {
+    "name": "רביולי גבינות עם רוטב עגבניות",
+    "category": "pasta"
+  },
+  {
+    "name": "פסטה במיץ עגבניות",
+    "category": "pasta"
+  },
+  {
+    "name": "פסטה עם סלמון ושמנת",
+    "category": "pasta"
+  },
+  {
+    "name": "פסטה עם סלמון",
+    "category": "pasta"
+  },
+  {
+    "name": "פסטה עם פטריות ושמנת",
+    "category": "pasta"
+  },
+  {
+    "name": "פסטה רוזה",
+    "category": "pasta"
+  },
+  {
+    "name": "פסטה בולונז צמחוני",
+    "category": "pasta"
+  },
+  {
+    "name": "ניוקי",
+    "category": "pasta"
+  },
+  {
+    "name": "גראטן תפו\"א",
+    "category": "pasta"
+  },
+  {
+    "name": "לזניה רגילה",
+    "category": "pasta"
+  },
+  {
+    "name": "לזניה תרד",
+    "category": "pasta"
+  },
+  {
+    "name": "לזניה גבינה ותרד",
+    "category": "pasta"
+  },
+  {
+    "name": "לזניית תרד וגבינות",
+    "category": "pasta"
+  },
+  {
+    "name": "פשטידת ברוקולי",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת כרובית",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת מנגולד",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת כרישה ומנגולד",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת בצל",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת בצל וקישואים",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת קישואים",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת קישואים וגבינה / גבינות",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת גבינות",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת גבינות וכרובית",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת גבינות בצל כרובית וברוקולי",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת מנגולד וגבינות",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת ברוקולי וגבינות",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת אורז, פטריות וגבינות",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת פטריות",
+    "category": "pastry"
+  },
+  {
+    "name": "פשטידת תירס",
+    "category": "pastry"
+  },
+  {
+    "name": "מאפה בטטה",
+    "category": "pastry"
+  },
+  {
+    "name": "מאפה עלי פילו עם גבינה בולגרית",
+    "category": "pastry"
+  },
+  {
+    "name": "מאפה פילו וגבינות",
+    "category": "pastry"
+  },
+  {
+    "name": "צ'וקור",
+    "category": "pastry"
+  },
+  {
+    "name": "מאפה מנגולד וכרישה",
+    "category": "pastry"
+  },
+  {
+    "name": "בורקס צמחוני",
+    "category": "pastry"
+  },
+  {
+    "name": "בורקס מדפי אורז / בורקס פיצה מדפי אורז",
+    "category": "pastry"
+  },
+  {
+    "name": "פוקצ'ה מדפי אורז",
+    "category": "pastry"
+  },
+  {
+    "name": "גחנון",
+    "category": "pastry"
+  },
+  {
+    "name": "טוסט כרובית",
+    "category": "pastry"
+  },
+  {
+    "name": "לביבות טונה",
+    "category": "main"
+  },
+  {
+    "name": "לביבות סלמון",
+    "category": "main"
+  },
+  {
+    "name": "לביבות סלמון אדומות",
+    "category": "main"
+  },
+  {
+    "name": "קציצות סלמון ברוטב אדום",
+    "category": "main"
+  },
+  {
+    "name": "קציצות דגים במיץ עגבניות",
+    "category": "main"
+  },
+  {
+    "name": "קציצות דג",
+    "category": "main"
+  },
+  {
+    "name": "דג על הפלאנצה",
+    "category": "main"
+  },
+  {
+    "name": "דג סול",
+    "category": "main"
+  },
+  {
+    "name": "פילה דג לברק / לברק",
+    "category": "main"
+  },
+  {
+    "name": "דגים חריימה",
+    "category": "main"
+  },
+  {
+    "name": "חריימה סלמון",
+    "category": "main"
+  },
+  {
+    "name": "סביצ'ה",
+    "category": "main"
+  },
+  {
+    "name": "סלמון ברוטב ירוק",
+    "category": "main"
+  },
+  {
+    "name": "סלמון ברוטב חרדל",
+    "category": "main"
+  },
+  {
+    "name": "סלמון ברוטב מתוק",
+    "category": "main"
+  },
+  {
+    "name": "עוף עם תפוחי אדמה",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "פרגיות",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "שניצלים",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "קציצות בשר של מדינה",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "חמין",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "קבב (לא צמחוני)",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "בורקס בשר",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "פסטה בולונז",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "חומוס בשר",
+    "category": "main",
+    "diet": "meat"
+  },
+  {
+    "name": "פוקי בול",
+    "category": "main"
+  },
+  {
+    "name": "ספרינג רולס",
+    "category": "main"
+  },
+  {
+    "name": "פאד תאי",
+    "category": "main"
+  },
+  {
+    "name": "תבשיל קאר",
+    "category": "main"
+  },
+  {
+    "name": "כרוב ממולא (צמחוני)",
+    "category": "main"
+  },
+  {
+    "name": "פלפלים ממולאים",
+    "category": "main"
+  },
+  {
+    "name": "קישואים ממולאים",
+    "category": "main"
+  },
+  {
+    "name": "שניצל צמחוני",
+    "category": "main"
+  },
+  {
+    "name": "שניצלוני תירס",
+    "category": "main"
+  },
+  {
+    "name": "נקניקיות קוקטייל צמחוניות",
+    "category": "main"
+  },
+  {
+    "name": "תבשיל נקניקיות ופתיתים",
+    "category": "main"
+  },
+  {
+    "name": "קבב צמחוני",
+    "category": "main"
+  },
+  {
+    "name": "אורז רגיל",
+    "category": "side"
+  },
+  {
+    "name": "אורז עם ירקות",
+    "category": "side"
+  },
+  {
+    "name": "אורז עם כרובית או ברוקולי וגזר",
+    "category": "side"
+  },
+  {
+    "name": "אורז של יובל",
+    "category": "side"
+  },
+  {
+    "name": "בורגול ועדשים",
+    "category": "side"
+  },
+  {
+    "name": "אטריות שעועית / אטריות אורז",
+    "category": "side"
+  },
+  {
+    "name": "קוסקוס",
+    "category": "side"
+  },
+  {
+    "name": "פירה תפוחי אדמה",
+    "category": "side"
+  },
+  {
+    "name": "תפו\"א בתנור",
+    "category": "side"
+  },
+  {
+    "name": "תפו\"א בשמנת",
+    "category": "side"
+  },
+  {
+    "name": "צ'יפס / צ'יפס בטטה",
+    "category": "side"
+  },
+  {
+    "name": "כרובית ובוקולי בתנור",
+    "category": "baked"
+  },
+  {
+    "name": "כרובית שלמה בתנור",
+    "category": "baked"
+  },
+  {
+    "name": "כרובית אפויה עם טחינה",
+    "category": "side"
+  },
+  {
+    "name": "כרוב אפוי במייפל וטימין",
+    "category": "baked"
+  },
+  {
+    "name": "כרוב צלוי",
+    "category": "baked"
+  },
+  {
+    "name": "שומר, עגבניות וקישוא אנטיפסטי",
+    "category": "baked"
+  },
+  {
+    "name": "גראטן תפוחי אדמה וכרישה",
+    "category": "side"
+  },
+  {
+    "name": "דלעת אפויה",
+    "category": "baked"
+  },
+  {
+    "name": "ברוקולי",
+    "category": "side"
+  },
+  {
+    "name": "במיה",
+    "category": "side"
+  },
+  {
+    "name": "ירוקים מוקפצים",
+    "category": "side"
+  },
+  {
+    "name": "שעועית ירוקה מוקפצת",
+    "category": "side"
+  },
+  {
+    "name": "ירקות אפויים / אנטיפסטי",
+    "category": "baked"
+  },
+  {
+    "name": "פריכיות אורז",
+    "category": "side"
+  },
+  {
+    "name": "טחינה",
+    "category": "dip"
+  },
+  {
+    "name": "חומוס",
+    "category": "dip"
+  },
+  {
+    "name": "ציזיקי (חלבי)",
+    "category": "dip"
+  },
+  {
+    "name": "רוטב פטריות",
+    "category": "dip"
+  },
+  {
+    "name": "רוטב ירוק",
+    "category": "dip"
+  },
+  {
+    "name": "רוטב רוזה (חלבי)",
+    "category": "dip"
+  },
+  {
+    "name": "רוטב טריאקי מתוק",
+    "category": "dip"
+  },
+  {
+    "name": "רוטב חמאת עגבניות (חלבי)",
+    "category": "dip"
+  },
+  {
+    "name": "רוטב אדום (רוטב עגבניות)",
+    "category": "dip"
+  },
+  {
+    "name": "ממרח קישואים בטעם כבד",
+    "category": "dip"
+  }
+]

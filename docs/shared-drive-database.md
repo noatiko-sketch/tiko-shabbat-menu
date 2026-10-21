@@ -1,0 +1,11 @@
+# Single authoritative Drive database
+
+The family Site and all active Apps Script deployments use the original private Drive state file `1wc9VbyXuLl9QTWVPLUYiU1vUQjz1vmZI`. The Site proxies server-side to the token-protected Apps Script bridge; credentials never reach the browser. `TIKO_STORAGE=drive` is required. A bridge error fails closed and never writes to D1. D1 is a frozen pre-migration legacy copy, not a fallback database.
+
+The migration retained approved Drive history for 2026-10-10 and 2026-10-17, all manual dishes and the excluded dish אורז רגיל. The manually edited Site menu for 2026-10-24 (revision 10, including סלט ברוקולי and מרק כרוב attributed to נעה) replaced a revision-1 generated Drive draft. Both conflicting versions were archived in `migration_conflicts`; original Drive files were also backed up before changes. Migration markers make reruns idempotent. The canonical catalog contains 166 dishes, including seven desserts.
+
+Canonical state fields: `menu_drafts`, `menu_revisions`, independent approved `history`, `dish_catalog`, `food_categories`, `excluded_dishes`, `family_status`. Existing `custom_dishes`, `manual_dishes`, `deliveries` and unknown fields are preserved. Added dishes are mirrored to `manual_dishes` for compatibility; exclusions remain effective. `food-list.md` is the initial seed, while current catalog edits live in the canonical state file.
+
+Validation: 49 tests, TypeScript, production build. Live UI loaded the migrated menu, and a temporary category-label change made in the Site was independently read back through Drive, then reverted to the original label. No test dishes were added; menu revision/history were unchanged by the category test. Do not claim that an automation reminder exists: the last automation lookup returned zero tasks.
+
+Deployment: Apps Script bridge version 5; Site runtime uses Drive, with server-only `TIKO_BRIDGE_URL` and `TIKO_BRIDGE_TOKEN`. Any future website must call this same service/state file rather than seed a second database. Any future chat workflow must read the current Drive state, including `dish_catalog` and `food_categories`, instead of treating the original food-list as a live catalog. For writes, prefer the locked bridge or Site UI to avoid losing concurrent edits.
