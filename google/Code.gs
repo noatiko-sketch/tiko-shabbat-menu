@@ -1,7 +1,15 @@
 /** One shared family database: the original private Google Drive state.json. */
 var TIKO={folder:'1emAiM56y-9PlMrJQGl9tA0SkTAPBrnml',state:'1wc9VbyXuLl9QTWVPLUYiU1vUQjz1vmZI',food:'1eVmval7caUC1sHWiyrozuA0DpqyX1qoH',illustration:'1kaIgQ-arvxA-DzaB1ImVq6DUT-_NQQmY'};
 function structuredClone(value){return JSON.parse(JSON.stringify(value));}
-function context_(){var local=Utilities.formatDate(new Date(),'Asia/Jerusalem','yyyy-MM-dd');var d=new Date(local+'T12:00:00Z'),day=d.getUTCDay();d.setUTCDate(d.getUTCDate()+((6-day+7)%7||7));return {today:local,upcoming:d.toISOString().slice(0,10),now:new Date().toISOString()};}
+function context_(now){
+ now=now||new Date();
+ var local=Utilities.formatDate(now,'Asia/Jerusalem','yyyy-MM-dd');
+ var hour=Number(Utilities.formatDate(now,'Asia/Jerusalem','H'));
+ var d=new Date(local+'T12:00:00Z'),day=d.getUTCDay();
+ var offset=day===6&&hour<18?0:((6-day+7)%7||7);
+ d.setUTCDate(d.getUTCDate()+offset);
+ return {today:local,upcoming:d.toISOString().slice(0,10),now:now.toISOString()};
+}
 function locked_(fn){var lock=LockService.getScriptLock();if(!lock.tryLock(25000))throw Error('מתבצע עדכון אחר כרגע. יש לנסות שוב.');try{return fn();}finally{lock.releaseLock();}}
 // Request-local objects only: shared state is always read afresh from Drive.
 function loadRecord_(ctx){var file=DriveApp.getFileById(TIKO.state),state=JSON.parse(file.getBlob().getDataAsString('UTF-8')),before=JSON.stringify(state);var food=state.dish_catalog?'':DriveApp.getFileById(TIKO.food).getBlob().getDataAsString('UTF-8');TikoDrive.initializeDrive(state,food,ctx);TikoDrive.archiveCompletedShabbats(state,ctx);return {file:file,state:state,before:before};}
@@ -82,8 +90,13 @@ function addDays(day, amount) {
     return d.toISOString().slice(0, 10);
 }
 function upcomingSaturday(now = new Date()) {
-    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+    const part = (type) => parts.find(p => p.type === type).value;
+    const day = `${part('year')}-${part('month')}-${part('day')}`;
     const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
+    // Keep this Saturday's menu through lunch, switching at 18:00 Israel time.
+    if (weekday === 6 && Number(part('hour')) < 18)
+        return day;
     return addDays(day, (6 - weekday + 7) % 7 || 7);
 }
 function validSaturday(day) {

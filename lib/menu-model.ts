@@ -9,8 +9,12 @@ export function addDays(day: string, amount: number) {
   const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + amount); return d.toISOString().slice(0,10);
 }
 export function upcomingSaturday(now = new Date()) {
-  const day = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(now);
+  const part = (type: string) => parts.find(p => p.type === type)!.value;
+  const day = `${part('year')}-${part('month')}-${part('day')}`;
   const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
+  // Keep this Saturday's menu through lunch, switching at 18:00 Israel time.
+  if (weekday === 6 && Number(part('hour')) < 18) return day;
   return addDays(day, (6 - weekday + 7) % 7 || 7);
 }
 export function validSaturday(day: string) {
