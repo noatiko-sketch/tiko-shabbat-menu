@@ -4,11 +4,27 @@ import {addDays,upcomingSaturday,validSaturday,emptyMenu,editMenu} from '../lib/
 const add=(saturday,meal,name)=>({type:'add',saturday,meal,dish:{name,category:'extra'}});
 test('week navigation crosses months and uses Jerusalem calendar',()=>{
  assert.equal(addDays('2026-10-03',-7),'2026-09-26');
- assert.equal(upcomingSaturday(new Date('2026-10-09T22:30:00Z')),'2026-10-17');
+ assert.equal(upcomingSaturday(new Date('2026-10-09T22:30:00Z')),'2026-10-10');
  assert.equal(validSaturday('2026-10-03'),true);
  assert.equal(validSaturday('2026-10-09'),false);
  assert.equal(validSaturday('2026-10-17'),true);
  assert.equal(validSaturday('2026-02-31'),false);
+});
+test('default menu switches at Saturday 18:00 Jerusalem time in summer and winter',()=>{
+ for (const [instant, expected] of [
+  ['2026-10-09T20:59:59Z','2026-10-10'], // Friday 23:59:59, summer time
+  ['2026-10-09T21:00:00Z','2026-10-10'], // Saturday midnight
+  ['2026-10-10T14:59:59Z','2026-10-10'], // Saturday 17:59:59
+  ['2026-10-10T15:00:00Z','2026-10-17'], // Saturday 18:00
+  ['2026-10-10T20:59:59Z','2026-10-17'], // Saturday 23:59:59
+  ['2026-10-10T21:00:00Z','2026-10-17'], // Sunday midnight
+  ['2026-10-30T21:59:59Z','2026-10-31'], // Friday 23:59:59, winter time
+  ['2026-10-30T22:00:00Z','2026-10-31'], // Saturday midnight
+  ['2026-10-31T15:59:59Z','2026-10-31'], // Saturday 17:59:59
+  ['2026-10-31T16:00:00Z','2026-11-07'], // Saturday 18:00, across month boundary
+  ['2026-10-31T21:59:59Z','2026-11-07'], // Saturday 23:59:59
+  ['2026-10-31T22:00:00Z','2026-11-07'], // Sunday midnight
+ ]) assert.equal(upcomingSaturday(new Date(instant)),expected,instant);
 });
 test('past Saturdays can add/remove independently in both meals',()=>{
  const original=emptyMenu('2026-09-19','2026-09-26',1);
