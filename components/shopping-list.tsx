@@ -4,7 +4,6 @@ import {Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X}
 import {shoppingCategories,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
 import {confirmShoppingAddition} from '@/lib/shopping-addition';
 import {ShoppingMutations} from '@/lib/shopping-mutations';
-import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 
 export function ShoppingList({person,onSavingChange}:{person:string;onSavingChange:(saving:boolean)=>void}){
  const [snapshot,setSnapshot]=useState<ShoppingSnapshot|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('');
@@ -88,11 +87,6 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
       {products.length===0?<p className="shopping-hint">המאגר ריק</p>:<><label className="shopping-search"><Search size={17}/><input aria-label="חיפוש מוצר במאגר" value={search} onChange={e=>setSearch(e.target.value)} placeholder="איזה מוצר להוסיף?"/></label><select aria-label="סינון המאגר לפי קטגוריה" value={filter} onChange={e=>setFilter(e.target.value)}><option value="">כל הקטגוריות</option>{Object.entries(shoppingCategories).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
        {catalog.length===0?<p className="shopping-hint">לא נמצאו מוצרים</p>:Object.entries(shoppingCategories).map(([id,label])=>{const group=catalog.filter(p=>p.category===id);return group.length>0&&<div className="shopping-catalog-group" key={id}><h3>{label}</h3>{group.map(product=>{const active=items.find(i=>i.productId===product.id);return <div className="shopping-catalog-entry" key={product.id}><div><button type="button" onClick={()=>void act({type:'shopping_add',productId:product.id})} aria-label={`הוספת ${product.name} לרשימה`}><span>{product.name}</span>{active&&!active.bought?<small><Check size={14}/> ברשימה</small>:<Plus size={17}/>}</button>{moveButton(product,'catalog')}</div>{categoryEditor(product,'catalog')}</div>;})}</div>;})}</>}
      </details>
-    <ShoppingPhotoImport person={person} busy={saving} onImport={async items=>{
-     const approved=snapshotRef.current&&confirmShoppingAddition(snapshotRef.current.shopping,{type:'shopping_import',items},message=>window.confirm(message));
-     if(!approved?.items?.length)return null;
-     const ok=await actApproved(approved);return ok?approved.items.length:false;
-    }}/>
     </aside>}</div>
    </>}
   </>}
