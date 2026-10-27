@@ -8,7 +8,8 @@ export type ShoppingCategory = keyof typeof shoppingCategories;
 export type ShoppingProduct = {id:string;name:string;category:ShoppingCategory};
 export type ShoppingItem = {productId:string;quantity:string;bought:boolean;updated_by:string;updated_at:string};
 export type ShoppingState = {revision:number;products:ShoppingProduct[];items:ShoppingItem[];receipts:{id:string;actor:string}[]};
-export type ShoppingAction = {type:'shopping_add'|'shopping_toggle'|'shopping_remove'|'shopping_clear_bought'|'shopping_recategorize';mutationId:string;revision?:number;productId?:string;name?:string;category?:string;quantity?:string;bought?:boolean};
+export type ShoppingImportItem = {name:string;category:ShoppingCategory;quantity:string};
+export type ShoppingAction = {type:'shopping_add'|'shopping_toggle'|'shopping_remove'|'shopping_clear_bought'|'shopping_recategorize'|'shopping_import';mutationId:string;revision?:number;productId?:string;name?:string;category?:string;quantity?:string;bought?:boolean;items?:ShoppingImportItem[]};
 export type ShoppingSnapshot = {status:'ready';storage:'google-drive';state_id:string;shopping:ShoppingState};
 export class ShoppingError extends Error {status:number;constructor(message:string,status=400){super(message);this.status=status;}}
 const shoppingCheck=(ok:unknown,message:string,status=400)=>{if(!ok)throw new ShoppingError(message,status);};
@@ -23,6 +24,16 @@ export function shoppingSnapshot(state:Record<string,any>):ShoppingSnapshot {
 export function editShopping(source:ShoppingState,action:ShoppingAction,actor:string,now:string):ShoppingState {
  shoppingCheck(family.includes(actor as any),'יש לבחור פרופיל.',401);
  shoppingCheck(typeof action.mutationId==='string'&&/^[a-zA-Z0-9-]{8,80}$/.test(action.mutationId),'מזהה פעולה לא תקין.');
+ if(action.type==='shopping_import'){
+  shoppingCheck(Array.isArray(action.items)&&action.items.length>0&&action.items.length<=80,'יש לבחור בין מוצר אחד ל־80 מוצרים.');
+  shoppingCheck(action.mutationId.length<=70,'מזהה ייבוא לא תקין.');
+  let next=source;
+  for(const [index,item] of action.items!.entries()){
+   shoppingCheck(item&&typeof item==='object','מוצר לא תקין.');
+   next=editShopping(next,{type:'shopping_add',name:item.name,category:item.category,quantity:item.quantity,mutationId:action.mutationId+'-'+index},actor,now);
+  }
+  next.revision=source.revision+1;return next;
+ }
  const s=structuredClone(source);
  if(action.type==='shopping_add'){
   let product=s.products.find(p=>p.id===action.productId);
@@ -67,4 +78,18 @@ export function shoppingAction(original:Record<string,any>,action:ShoppingAction
  next.receipts=[...next.receipts,{id:action.mutationId,actor}].slice(-80);
  const state={...original,shopping:next};
  return {state,changed:true,response:{snapshot:shoppingSnapshot(state)}};
+}
+
+// A bounded daily allowance in the existing locked Drive file, not an isolate-local counter.
+// A failed provider call still consumes its reservation; replays cannot bypass the limit.
+export function reserveShoppingScan(original:Record<string,any>,mutationId:string,actor:string,now:string){
+ shoppingCheck(family.includes(actor as any),'יש לבחור פרופיל.',401);
+ shoppingCheck(typeof mutationId==='string'&&/^[a-zA-Z0-9-]{8,80}$/.test(mutationId),'מזהה צילום לא תקין.');
+ const day=now.slice(0,10),previous=original.shopping_scan_usage;
+ const requests:{id:string;actor:string}[]=previous?.day===day?previous.requests:[];
+ shoppingCheck(Array.isArray(requests),'מונה הצילומים דורש בדיקה.',503);
+ shoppingCheck(!requests.some(r=>r.id===mutationId),'הצילום כבר נשלח לפענוח. יש להתחיל צילום חדש.',409);
+ shoppingCheck(requests.length<30,'הגעתם למכסת 30 הצילומים המשפחתית להיום. אפשר להוסיף מוצרים ידנית.',429);
+ const state={...original,shopping_scan_usage:{day,requests:[...requests,{id:mutationId,actor}]}};
+ return {state,changed:true,response:{snapshot:shoppingSnapshot(state),scan_reserved:true}};
 }

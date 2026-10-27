@@ -35,7 +35,7 @@ function shoppingRequest_(body){
  if(!['אמא','אבא','נעה','אביגיל','יפעת'].includes(body.actor))throw {status:401,message:'יש לבחור פרופיל.'};
  function read(){var file=DriveApp.getFileById(TIKO.state);return {file:file,state:JSON.parse(file.getBlob().getDataAsString('UTF-8'))};}
  if(body.type==='shopping_snapshot')return TikoDrive.shoppingSnapshot(read().state);
- return locked_(function(){var record=read(),result=TikoDrive.shoppingAction(record.state,body,body.actor,new Date().toISOString());if(result.changed)save_(result.state,record.file);return result.response;});
+ return locked_(function(){var record=read(),now=new Date().toISOString(),result=body.type==='shopping_scan_reserve'?TikoDrive.reserveShoppingScan(record.state,body.mutationId,body.actor,now):TikoDrive.shoppingAction(record.state,body,body.actor,now);if(result.changed)save_(result.state,record.file);return result.response;});
 }
 function doPost(e){try{var b=JSON.parse(e.postData.contents||'{}'),token=PropertiesService.getScriptProperties().getProperty('TIKO_BRIDGE_TOKEN');if(!token||token.length<32||b.token!==token)return reply_({http_status:401,detail:'Unauthorized'});if(typeof b.type==='string'&&b.type.startsWith('shopping_'))return reply_(shoppingRequest_(b));if(b.type==='snapshot')return reply_(readSnapshot_(b));return reply_(locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,b,b.actor,ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;}));}catch(error){return reply_({http_status:error.status||503,detail:String(error.message||error)});}}
 // Run as owner once after the Site enters migration mode. Idempotent; Drive wins conflicts.

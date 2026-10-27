@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./shopping.css";
+@import "./shopping-photo.css";
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 @import url("https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap");
