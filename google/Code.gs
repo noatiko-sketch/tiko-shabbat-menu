@@ -30,7 +30,14 @@ function doGet(){var template=HtmlService.createTemplateFromFile('Index');var bl
 function getMenu(day,code){authorize_(code);return readSnapshot_({saturday:day});}
 function runAction(action,code){authorize_(code);return locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,action,action.actor||'משפחה',ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;});}
 function reply_(body){return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);}
-function doPost(e){try{var b=JSON.parse(e.postData.contents||'{}'),token=PropertiesService.getScriptProperties().getProperty('TIKO_BRIDGE_TOKEN');if(!token||token.length<32||b.token!==token)return reply_({http_status:401,detail:'Unauthorized'});if(b.type==='snapshot')return reply_(readSnapshot_(b));return reply_(locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,b,b.actor,ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;}));}catch(error){return reply_({http_status:error.status||503,detail:String(error.message||error)});}}
+// Shopping shares the existing file but never initializes or generates meal menus.
+function shoppingRequest_(body){
+ if(!['אמא','אבא','נעה','אביגיל','יפעת'].includes(body.actor))throw {status:401,message:'יש לבחור פרופיל.'};
+ function read(){var file=DriveApp.getFileById(TIKO.state);return {file:file,state:JSON.parse(file.getBlob().getDataAsString('UTF-8'))};}
+ if(body.type==='shopping_snapshot')return TikoDrive.shoppingSnapshot(read().state);
+ return locked_(function(){var record=read(),result=TikoDrive.shoppingAction(record.state,body,body.actor,new Date().toISOString());if(result.changed)save_(result.state,record.file);return result.response;});
+}
+function doPost(e){try{var b=JSON.parse(e.postData.contents||'{}'),token=PropertiesService.getScriptProperties().getProperty('TIKO_BRIDGE_TOKEN');if(!token||token.length<32||b.token!==token)return reply_({http_status:401,detail:'Unauthorized'});if(typeof b.type==='string'&&b.type.startsWith('shopping_'))return reply_(shoppingRequest_(b));if(b.type==='snapshot')return reply_(readSnapshot_(b));return reply_(locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,b,b.actor,ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;}));}catch(error){return reply_({http_status:error.status||503,detail:String(error.message||error)});}}
 // Run as owner once after the Site enters migration mode. Idempotent; Drive wins conflicts.
 function setupDriveBridge(){var active=Session.getActiveUser().getEmail(),owner=Session.getEffectiveUser().getEmail();if(!active||active!==owner)throw Error('יש להריץ מתוך העורך בחשבון בעלת הפרויקט.');return locked_(function(){var token=PropertiesService.getScriptProperties().getProperty('TIKO_BRIDGE_TOKEN');if(!token||token.length<32)throw Error('חסר TIKO_BRIDGE_TOKEN בהגדרות הפרויקט.');var ctx=context_(),s=load_(ctx);if(!s.site_migration_v2){var response=UrlFetchApp.fetch('https://tiko-shabbat-menu.noatiko.chatgpt.site/api/drive-migration',{method:'post',contentType:'application/json',headers:{'x-tiko-bridge-token':token},payload:'{}',muteHttpExceptions:true});if(response.getResponseCode()!==200)throw Error('העברת הנתונים נעצרה: '+response.getResponseCode());var data=JSON.parse(response.getContentText());DriveApp.getFileById(TIKO.state).makeCopy('state-backup-before-shared-drive-'+ctx.now.replace(/[:.]/g,'-')+'.json',DriveApp.getFolderById(TIKO.folder));s=TikoDrive.mergeSiteExport(s,data,ctx);save_(s);}console.log(JSON.stringify({ready:true,storage:'google-drive',state_id:TIKO.state,migration:s.site_migration_v2,menus:Object.keys(s.menu_drafts).length,dishes:s.dish_catalog.length}));return {ready:true};});}
 
@@ -512,6 +519,88 @@ function mergeSiteExport(original, exported, ctx) {
     s.site_migration_v2 = { at: ctx.now, imported_dates: [...importedDates] };
     return s;
 }
+const shoppingCategories = {
+    produce: 'ירקות ופירות', cleaning: 'מוצרי ניקוי', legumes: 'קטניות', cereal: 'דגני בוקר',
+    dairy: 'מוצרי חלב', fresh: 'דגים, בשר ועוף טריים', water: 'מים', frozen: 'קפואים', canned: 'שימורים', general: 'כללי',
+};
+class ShoppingError extends Error {
+    constructor(message, status = 400) { super(message); this.status = status; }
+}
+const shoppingCheck = (ok, message, status = 400) => { if (!ok)
+    throw new ShoppingError(message, status); };
+const shoppingName = (name) => name.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('he');
+function readShopping(state) {
+    return state.shopping ? structuredClone(state.shopping) : { revision: 0, products: [], items: [], receipts: [] };
+}
+function shoppingSnapshot(state) {
+    // Mutation receipts stay on the server; clients only need the current revision.
+    return { status: 'ready', storage: 'google-drive', state_id: '1wc9VbyXuLl9QTWVPLUYiU1vUQjz1vmZI', shopping: { ...readShopping(state), receipts: [] } };
+}
+function editShopping(source, action, actor, now) {
+    shoppingCheck(family.includes(actor), 'יש לבחור פרופיל.', 401);
+    shoppingCheck(typeof action.mutationId === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(action.mutationId), 'מזהה פעולה לא תקין.');
+    const s = structuredClone(source);
+    if (action.type === 'shopping_add') {
+        let product = s.products.find(p => p.id === action.productId);
+        if (!action.productId) {
+            shoppingCheck(typeof action.name === 'string', 'יש לכתוב שם מוצר.');
+            const name = action.name.replace(/\s+/g, ' ').trim();
+            shoppingCheck(name.length > 0 && name.length <= 100, 'יש לכתוב שם מוצר עד 100 תווים.');
+            shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories, action.category || ''), 'יש לבחור קטגוריה.');
+            product = s.products.find(p => shoppingName(p.name) === shoppingName(name));
+            if (!product) {
+                shoppingCheck(s.products.length < 2000, 'המאגר מכיל כבר 2,000 מוצרים.');
+                product = { id: 'p-' + action.mutationId, name, category: action.category };
+                s.products.push(product);
+            }
+        }
+        shoppingCheck(product, 'המוצר אינו במאגר. יש לרענן את הרשימה.');
+        shoppingCheck(action.quantity === undefined || typeof action.quantity === 'string' && action.quantity.length <= 60, 'כמות ארוכה מדי — עד 60 תווים.');
+        const item = s.items.find(i => i.productId === product.id);
+        const quantity = action.quantity?.trim() ?? item?.quantity ?? '';
+        if (item)
+            Object.assign(item, { quantity, bought: false, updated_by: actor, updated_at: now });
+        else {
+            shoppingCheck(s.items.length < 500, 'אפשר להוסיף עד 500 מוצרים לרשימה.');
+            s.items.push({ productId: product.id, quantity, bought: false, updated_by: actor, updated_at: now });
+        }
+    }
+    else if (action.type === 'shopping_toggle' || action.type === 'shopping_remove') {
+        const item = s.items.find(i => i.productId === action.productId);
+        shoppingCheck(item, 'המוצר כבר הוסר מהרשימה. יש לרענן.');
+        if (action.type === 'shopping_toggle') {
+            shoppingCheck(typeof action.bought === 'boolean', 'סימון קנייה לא תקין.');
+            Object.assign(item, { bought: action.bought, updated_by: actor, updated_at: now });
+        }
+        else
+            s.items = s.items.filter(i => i.productId !== action.productId);
+    }
+    else if (action.type === 'shopping_clear_bought')
+        s.items = s.items.filter(i => !i.bought);
+    else if (action.type === 'shopping_recategorize') {
+        const product = s.products.find(p => p.id === action.productId);
+        shoppingCheck(product, 'המוצר אינו במאגר.');
+        shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories, action.category || ''), 'יש לבחור קטגוריה.');
+        product.category = action.category;
+    }
+    else
+        throw new ShoppingError('פעולת קניות לא מוכרת.');
+    s.revision++;
+    return s;
+}
+function shoppingAction(original, action, actor, now) {
+    shoppingCheck(family.includes(actor), 'יש לבחור פרופיל.', 401);
+    const current = readShopping(original), receipt = current.receipts.find(r => r.id === action.mutationId);
+    if (receipt) {
+        shoppingCheck(receipt.actor === actor, 'מזהה פעולה לא תקין.', 409);
+        return { state: original, changed: false, response: { snapshot: shoppingSnapshot(original) } };
+    }
+    shoppingCheck(action.revision === current.revision, 'רשימת הקניות השתנתה אצל בן משפחה אחר. יש לנסות שוב לאחר הרענון.', 409);
+    const next = editShopping(current, action, actor, now);
+    next.receipts = [...next.receipts, { id: action.mutationId, actor }].slice(-80);
+    const state = { ...original, shopping: next };
+    return { state, changed: true, response: { snapshot: shoppingSnapshot(state) } };
+}
 
-return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats};
+return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats,shoppingSnapshot,shoppingAction};
 })();
