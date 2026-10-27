@@ -3,6 +3,7 @@ import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
 import {shoppingCategories,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
 import {ShoppingMutations} from '@/lib/shopping-mutations';
+import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 
 export function ShoppingList({person,onSavingChange}:{person:string;onSavingChange:(saving:boolean)=>void}){
  const [snapshot,setSnapshot]=useState<ShoppingSnapshot|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('');
@@ -62,6 +63,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   {!person?<p className="shopping-empty">יש לבחור בן משפחה למעלה כדי לפתוח את רשימת הקניות.</p>:<>
    {error&&<div className="shopping-error" role="alert"><p>{error}</p><button type="button" disabled={saving} onClick={()=>{setError('');void refresh();}}>טעינה מחדש</button></div>}
    {loading&&!snapshot?<p className="shopping-loading" role="status"><LoaderCircle className="spin" size={20}/>טוענים את הרשימה המשפחתית…</p>:!snapshot?<p className="shopping-empty">הרשימה אינה זמינה כרגע. אפשר לנסות שוב באמצעות טעינה מחדש.</p>:<>
+    <ShoppingPhotoImport person={person} busy={saving} onImport={items=>act({type:'shopping_import',items})}/>
     <div className="shopping-layout"><div className="shopping-active">
      <div className="shopping-section-heading"><h2>מה עוד צריך?</h2><span role="status" className={saving?'shopping-saving':''}>{saving?<><LoaderCircle className="spin" size={14}/> שומרים…</>:error?'יש לבדוק את השמירה':<><Check size={14}/> הרשימה מעודכנת</>}</span></div>
      {remaining.length===0&&<div className="shopping-empty"><ShoppingCart size={30}/><h3>{bought.length?'הכול בסל!':'מה צריך לקנות?'}</h3><p>{bought.length?'אפשר להוסיף מוצרים נוספים או לבטל סימון באזור ״כבר נקנה״.':'מוסיפים מוצר חדש או בוחרים מהמאגר המשפחתי.'}</p></div>}

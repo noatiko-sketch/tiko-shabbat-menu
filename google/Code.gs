@@ -35,7 +35,7 @@ function shoppingRequest_(body){
  if(!['אמא','אבא','נעה','אביגיל','יפעת'].includes(body.actor))throw {status:401,message:'יש לבחור פרופיל.'};
  function read(){var file=DriveApp.getFileById(TIKO.state);return {file:file,state:JSON.parse(file.getBlob().getDataAsString('UTF-8'))};}
  if(body.type==='shopping_snapshot')return TikoDrive.shoppingSnapshot(read().state);
- return locked_(function(){var record=read(),result=TikoDrive.shoppingAction(record.state,body,body.actor,new Date().toISOString());if(result.changed)save_(result.state,record.file);return result.response;});
+ return locked_(function(){var record=read(),now=new Date().toISOString(),result=body.type==='shopping_scan_reserve'?TikoDrive.reserveShoppingScan(record.state,body.mutationId,body.actor,now):TikoDrive.shoppingAction(record.state,body,body.actor,now);if(result.changed)save_(result.state,record.file);return result.response;});
 }
 function doPost(e){try{var b=JSON.parse(e.postData.contents||'{}'),token=PropertiesService.getScriptProperties().getProperty('TIKO_BRIDGE_TOKEN');if(!token||token.length<32||b.token!==token)return reply_({http_status:401,detail:'Unauthorized'});if(typeof b.type==='string'&&b.type.startsWith('shopping_'))return reply_(shoppingRequest_(b));if(b.type==='snapshot')return reply_(readSnapshot_(b));return reply_(locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,b,b.actor,ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;}));}catch(error){return reply_({http_status:error.status||503,detail:String(error.message||error)});}}
 // Run as owner once after the Site enters migration mode. Idempotent; Drive wins conflicts.
@@ -539,6 +539,17 @@ function shoppingSnapshot(state) {
 function editShopping(source, action, actor, now) {
     shoppingCheck(family.includes(actor), 'יש לבחור פרופיל.', 401);
     shoppingCheck(typeof action.mutationId === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(action.mutationId), 'מזהה פעולה לא תקין.');
+    if (action.type === 'shopping_import') {
+        shoppingCheck(Array.isArray(action.items) && action.items.length > 0 && action.items.length <= 80, 'יש לבחור בין מוצר אחד ל־80 מוצרים.');
+        shoppingCheck(action.mutationId.length <= 70, 'מזהה ייבוא לא תקין.');
+        let next = source;
+        for (const [index, item] of action.items.entries()) {
+            shoppingCheck(item && typeof item === 'object', 'מוצר לא תקין.');
+            next = editShopping(next, { type: 'shopping_add', name: item.name, category: item.category, quantity: item.quantity, mutationId: action.mutationId + '-' + index }, actor, now);
+        }
+        next.revision = source.revision + 1;
+        return next;
+    }
     const s = structuredClone(source);
     if (action.type === 'shopping_add') {
         let product = s.products.find(p => p.id === action.productId);
@@ -601,6 +612,19 @@ function shoppingAction(original, action, actor, now) {
     const state = { ...original, shopping: next };
     return { state, changed: true, response: { snapshot: shoppingSnapshot(state) } };
 }
+// A bounded daily allowance in the existing locked Drive file, not an isolate-local counter.
+// A failed provider call still consumes its reservation; replays cannot bypass the limit.
+function reserveShoppingScan(original, mutationId, actor, now) {
+    shoppingCheck(family.includes(actor), 'יש לבחור פרופיל.', 401);
+    shoppingCheck(typeof mutationId === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(mutationId), 'מזהה צילום לא תקין.');
+    const day = now.slice(0, 10), previous = original.shopping_scan_usage;
+    const requests = previous?.day === day ? previous.requests : [];
+    shoppingCheck(Array.isArray(requests), 'מונה הצילומים דורש בדיקה.', 503);
+    shoppingCheck(!requests.some(r => r.id === mutationId), 'הצילום כבר נשלח לפענוח. יש להתחיל צילום חדש.', 409);
+    shoppingCheck(requests.length < 30, 'הגעתם למכסת 30 הצילומים המשפחתית להיום. אפשר להוסיף מוצרים ידנית.', 429);
+    const state = { ...original, shopping_scan_usage: { day, requests: [...requests, { id: mutationId, actor }] } };
+    return { state, changed: true, response: { snapshot: shoppingSnapshot(state), scan_reserved: true } };
+}
 
-return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats,shoppingSnapshot,shoppingAction};
+return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats,shoppingSnapshot,shoppingAction,reserveShoppingScan};
 })();
