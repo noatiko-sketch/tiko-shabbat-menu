@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
 import {shoppingCategories,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
+import {confirmShoppingAddition} from '@/lib/shopping-addition';
 import {ShoppingMutations} from '@/lib/shopping-mutations';
 import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 
@@ -33,6 +34,11 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
  },[refresh]);
  useEffect(()=>{const warn=(event:BeforeUnloadEvent)=>{if(pending.current)event.preventDefault();};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[]);
  const act=async(fields:Omit<ShoppingAction,'mutationId'|'revision'>)=>{
+  const confirmed=snapshotRef.current&&confirmShoppingAddition(snapshotRef.current.shopping,fields,message=>window.confirm(message));
+  if(!confirmed)return false;
+  return actApproved(confirmed);
+ };
+ const actApproved=async(fields:Omit<ShoppingAction,'mutationId'|'revision'>)=>{
   setError('');version.current++;flight.current?.abort();
   try{
    const action={...fields,mutationId:crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('')};
@@ -63,7 +69,11 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   {!person?<p className="shopping-empty">יש לבחור בן משפחה למעלה כדי לפתוח את רשימת הקניות.</p>:<>
    {error&&<div className="shopping-error" role="alert"><p>{error}</p><button type="button" disabled={saving} onClick={()=>{setError('');void refresh();}}>טעינה מחדש</button></div>}
    {loading&&!snapshot?<p className="shopping-loading" role="status"><LoaderCircle className="spin" size={20}/>טוענים את הרשימה המשפחתית…</p>:!snapshot?<p className="shopping-empty">הרשימה אינה זמינה כרגע. אפשר לנסות שוב באמצעות טעינה מחדש.</p>:<>
-    <ShoppingPhotoImport person={person} busy={saving} onImport={items=>act({type:'shopping_import',items})}/>
+    <ShoppingPhotoImport person={person} busy={saving} onImport={async items=>{
+     const approved=snapshotRef.current&&confirmShoppingAddition(snapshotRef.current.shopping,{type:'shopping_import',items},message=>window.confirm(message));
+     if(!approved?.items?.length)return null;
+     const ok=await actApproved(approved);return ok?approved.items.length:false;
+    }}/>
     <div className="shopping-layout"><div className="shopping-active">
      <div className="shopping-section-heading"><h2>מה עוד צריך?</h2><span role="status" className={saving?'shopping-saving':''}>{saving?<><LoaderCircle className="spin" size={14}/> שומרים…</>:error?'יש לבדוק את השמירה':<><Check size={14}/> הרשימה מעודכנת</>}</span></div>
      {remaining.length===0&&<div className="shopping-empty"><ShoppingCart size={30}/><h3>{bought.length?'הכול בסל!':'מה צריך לקנות?'}</h3><p>{bought.length?'אפשר להוסיף מוצרים נוספים או לבטל סימון באזור ״כבר נקנה״.':'מוסיפים מוצר חדש או בוחרים מהמאגר המשפחתי.'}</p></div>}
@@ -81,7 +91,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
      </form>
      <details className="shopping-catalog" open><summary>בחירה מהמוצרים שלנו <span>{products.length}</span><ChevronDown size={17}/></summary>
       {products.length===0?<p className="shopping-hint">המאגר עוד ריק. המוצרים שתוסיפו יופיעו כאן.</p>:<><label className="shopping-search"><Search size={17}/><input aria-label="חיפוש מוצר במאגר" value={search} onChange={e=>setSearch(e.target.value)} placeholder="איזה מוצר להוסיף?"/></label><select aria-label="סינון המאגר לפי קטגוריה" value={filter} onChange={e=>setFilter(e.target.value)}><option value="">כל הקטגוריות</option>{Object.entries(shoppingCategories).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
-       {catalog.length===0?<p className="shopping-hint">לא נמצאו מוצרים. אפשר להוסיף מוצר חדש למעלה.</p>:Object.entries(shoppingCategories).map(([id,label])=>{const group=catalog.filter(p=>p.category===id);return group.length>0&&<div className="shopping-catalog-group" key={id}><h3>{label}</h3>{group.map(product=>{const active=items.find(i=>i.productId===product.id);return <div className="shopping-catalog-entry" key={product.id}><div><button type="button" disabled={active&&!active.bought} onClick={()=>void act({type:'shopping_add',productId:product.id})} aria-label={`הוספת ${product.name} לרשימה`}><span>{product.name}</span>{active&&!active.bought?<small><Check size={14}/> ברשימה</small>:<Plus size={17}/>}</button>{moveButton(product,'catalog')}</div>{categoryEditor(product,'catalog')}</div>;})}</div>;})}</>}
+       {catalog.length===0?<p className="shopping-hint">לא נמצאו מוצרים. אפשר להוסיף מוצר חדש למעלה.</p>:Object.entries(shoppingCategories).map(([id,label])=>{const group=catalog.filter(p=>p.category===id);return group.length>0&&<div className="shopping-catalog-group" key={id}><h3>{label}</h3>{group.map(product=>{const active=items.find(i=>i.productId===product.id);return <div className="shopping-catalog-entry" key={product.id}><div><button type="button" onClick={()=>void act({type:'shopping_add',productId:product.id})} aria-label={`הוספת ${product.name} לרשימה`}><span>{product.name}</span>{active&&!active.bought?<small><Check size={14}/> ברשימה</small>:<Plus size={17}/>}</button>{moveButton(product,'catalog')}</div>{categoryEditor(product,'catalog')}</div>;})}</div>;})}</>}
      </details>
     </aside></div>
     <p className="shopping-footnote">לא מצאתם מוצר? משאירים אותו בלי סימון — הוא יחכה גם לחנות הבאה.</p>

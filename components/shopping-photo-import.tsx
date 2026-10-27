@@ -5,7 +5,7 @@ import {shoppingCategories,type ShoppingCategory,type ShoppingImportItem} from '
 import {confirmedShoppingItems,parseShoppingScan,reviewShoppingScan,type ReviewShoppingItem} from '@/lib/shopping-scan';
 import {prepareShoppingPhoto} from '@/lib/shopping-photo';
 
-export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:boolean;onImport:(items:ShoppingImportItem[])=>Promise<boolean>}){
+export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:boolean;onImport:(items:ShoppingImportItem[])=>Promise<number|false|null>}){
  const [image,setImage]=useState(''),[rows,setRows]=useState<ReviewShoppingItem[]|null>(null),[warning,setWarning]=useState(''),[error,setError]=useState(''),[success,setSuccess]=useState('');
  const [preparing,setPreparing]=useState(false),[scanning,setScanning]=useState(false),[importing,setImporting]=useState(false);
  const camera=useRef<HTMLInputElement>(null),gallery=useRef<HTMLInputElement>(null),version=useRef(0),mounted=useRef(true),flight=useRef<AbortController|null>(null),manualId=useRef(0);
@@ -37,7 +37,8 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
    const items=confirmedShoppingItems(rows||[]);setError('');setImporting(true);
    const ok=await onImport(items);
    if(!mounted.current)return;
-   if(ok){cancel();setSuccess(`המוצרים שאישרת נוספו לרשימה (${items.length}).`);}
+   if(typeof ok==='number'){cancel();setSuccess(`המוצרים שאישרת נוספו לרשימה (${ok}).`);}
+   else if(ok===null)setError('לא נוספו מוצרים. אפשר לתקן את השורות ולנסות שוב.');
    else setError('ההוספה לא אושרה. התיקונים נשארו כאן; יש לבדוק את הודעת השמירה ולנסות שוב.');
   }catch(e){if(mounted.current)setError((e as Error).message);}
   finally{if(mounted.current)setImporting(false);}
