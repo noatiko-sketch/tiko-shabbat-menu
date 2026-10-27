@@ -45,7 +45,7 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
  };
  const selected=rows?.filter(row=>row.selected).length||0;
  return <section className="shopping-photo" aria-label="צילום רשימת קניות">
-  <div className="shopping-photo-toolbar"><div><h2>מהרשימה שעל המקרר לסל</h2><p>מצלמים, בודקים ומוסיפים רק את מה שצריך.</p></div><div className="shopping-photo-actions">
+  <div className="shopping-photo-toolbar"><div className="shopping-photo-actions">
    <button type="button" disabled={busy||importing||preparing} className="shopping-photo-camera" onClick={()=>camera.current?.click()}><Camera size={18}/> צלם רשימה</button>
    <button type="button" disabled={busy||importing||preparing} onClick={()=>gallery.current?.click()}><ImagePlus size={18}/> בחירת תמונה</button>
    <input hidden type="file" accept="image/*" capture="environment" ref={camera} onChange={e=>void choose(e)} aria-label="צילום רשימה במצלמה"/>
@@ -56,19 +56,19 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
   {preparing&&<p className="shopping-photo-status" role="status"><LoaderCircle className="spin" size={18}/>מכינים את התמונה…</p>}
   {image&&<div className="shopping-photo-layout"><div className="shopping-photo-review">
    <div className="shopping-photo-review-title"><h3>{rows?'בדיקת המוצרים שפוענחו':'התמונה מוכנה לפענוח'}</h3><button type="button" disabled={importing} aria-label="סגירת צילום הרשימה" onClick={cancel}><X size={18}/></button></div>
-   {rows===null?<><p className="shopping-hint">צלמו מקרוב, באור טוב, כך שהכתב יהיה ברור. התמונה תישלח ל־OpenAI לצורך הפענוח; היא אינה נשמרת בקובץ המשפחתי. המוצרים יתווספו רק לאחר בדיקה ואישור שלכם.</p><button type="button" className="shopping-primary" disabled={scanning||busy} onClick={()=>void analyze()}>{scanning?<LoaderCircle className="spin" size={18}/>:<Camera size={18}/>} {scanning?'מפענחים את הרשימה…':'פענח את התמונה'}</button>{scanning&&<p role="status" className="shopping-hint">זה עשוי לקחת כמה רגעים. עדיין לא נוספו מוצרים.</p>}</>:<>
-    <p className="shopping-hint">בדקו את כל השורות, גם אלה שלא סומנו כלא ברורות. ✓ או קו על מוצר מסמנים שכבר נקנה ולכן הוא לא נבחר. אפשר לתקן ולבחור כל שורה מחדש.</p>
+   {rows===null?<><p className="shopping-hint">התמונה נשלחת ל־OpenAI. הוספה רק באישור שלך.</p><button type="button" className="shopping-primary" disabled={scanning||busy} onClick={()=>void analyze()}>{scanning?<LoaderCircle className="spin" size={18}/>:<Camera size={18}/>} {scanning?'מפענחים את הרשימה…':'פענח את התמונה'}</button></>:<>
+    <p className="shopping-hint">בדקו ותקנו לפני ההוספה.</p>
     {warning&&<p className="shopping-photo-warning" role="status">{warning}</p>}
-    {rows.length===0&&<p className="shopping-hint">לא זוהו מוצרים. אפשר להוסיף שורות ידנית או לבחור צילום אחר.</p>}
+    {rows.length===0&&<p className="shopping-hint">לא זוהו מוצרים</p>}
     <ul className="shopping-scan-rows">{rows.map((row,index)=><li key={row.id} className={row.selected?'scan-selected':''}>
      <div className="shopping-scan-row-top"><label className="shopping-scan-select"><input type="checkbox" checked={row.selected} disabled={importing} onChange={e=>edit(row.id,{selected:e.target.checked})}/> הוספה לרשימה</label><div>{row.mark!=='none'&&<span className="shopping-scan-mark">{row.mark==='checked'?'✓ כבר נקנה':'מחוק בצילום'}</span>}{row.uncertain&&<span className="shopping-scan-uncertain">דורש בדיקה</span>}</div><button type="button" className="shopping-remove" disabled={importing} aria-label={`מחיקת שורה ${index+1} מהפענוח`} onClick={()=>setRows(previous=>previous!.filter(item=>item.id!==row.id))}><Trash2 size={16}/></button></div>
      <label className="shopping-scan-name">שם המוצר<input aria-label={`שם המוצר בשורה ${index+1}`} value={row.name} placeholder="יש להשלים את שם המוצר" maxLength={100} disabled={importing} onChange={e=>edit(row.id,{name:e.target.value})}/></label>
      <div className="shopping-form-pair"><label>כמות<input aria-label={`כמות בשורה ${index+1}`} value={row.quantity} maxLength={60} disabled={importing} onChange={e=>edit(row.id,{quantity:e.target.value})}/></label><label>קטגוריה<select aria-label={`קטגוריה בשורה ${index+1}`} value={row.category} disabled={importing} onChange={e=>edit(row.id,{category:e.target.value as ShoppingCategory})}>{Object.entries(shoppingCategories).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label></div>
      {row.note&&<p className="shopping-scan-note">{row.note}</p>}
     </li>)}</ul>
-    <button type="button" className="shopping-scan-add" disabled={importing||rows.length>=80} onClick={()=>setRows(previous=>[...previous!,{id:'manual-row-'+(++manualId.current),name:'',quantity:'',category:'general',mark:'none',uncertain:false,note:'',selected:true}])}><Plus size={17}/> הוספת שורה שלא זוהתה</button>
+    <button type="button" className="shopping-scan-add" disabled={importing||rows.length>=80} onClick={()=>setRows(previous=>[...previous!,{id:'manual-row-'+(++manualId.current),name:'',quantity:'',category:'general',mark:'none',uncertain:false,note:'',selected:true}])}><Plus size={17}/> הוספת שורה</button>
     <button type="button" className="shopping-primary" disabled={importing||busy||selected===0} onClick={()=>void confirm()}>{importing?<LoaderCircle className="spin" size={18}/>:<Check size={18}/>} {importing?'מוסיפים לרשימה…':`הוסף מוצרים מאושרים (${selected})`}</button>
    </>}
-  </div><aside className="shopping-photo-image"><img src={image} alt="צילום הרשימה להשוואה עם הפענוח"/><span>התמונה המקורית לבדיקה</span></aside></div>}
+  </div><aside className="shopping-photo-image"><img src={image} alt="צילום הרשימה להשוואה עם הפענוח"/><span>התמונה</span></aside></div>}
  </section>;
 }
