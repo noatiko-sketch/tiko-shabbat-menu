@@ -2,6 +2,8 @@
 
 אתר משפחתי לתפריט שבת, מאגר מנות ורשימת קניות. האחסון החדש משתמש **רק ב־GitHub Pages ובגוגל**.
 
+**האתר החדש:** https://noatiko-sketch.github.io/tiko-shabbat-menu/
+
 ## איך זה עובד
 
 - GitHub Pages מציג את הממשק הסטטי.
