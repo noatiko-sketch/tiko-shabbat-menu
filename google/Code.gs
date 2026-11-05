@@ -26,7 +26,40 @@ function readSnapshot_(body){
 }
 function authorize_(code){var expected=PropertiesService.getScriptProperties().getProperty('TIKO_FAMILY_CODE');if(expected){if(String(code||'')!==expected)throw Error('קוד הכניסה אינו נכון.');return;}var active=Session.getActiveUser().getEmail(),owner=Session.getEffectiveUser().getEmail();if(!active||active!==owner)throw Error('הכניסה לגרסה הישנה זמינה לבעלת הפרויקט בלבד.');}
 function getClientConfig(){return {requiresCode:!!PropertiesService.getScriptProperties().getProperty('TIKO_FAMILY_CODE')};}
-function doGet(){var template=HtmlService.createTemplateFromFile('Index');var blob=DriveApp.getFileById(TIKO.illustration).getBlob();template.illustrationSrc='data:image/png;base64,'+Utilities.base64Encode(blob.getBytes());return template.evaluate().setTitle('אוכל לשבת — משפחת טיקו').addMetaTag('viewport','width=device-width, initial-scale=1');}
+function archiveCompletedWeekly_(){return locked_(function(){var record=loadRecord_(context_());if(JSON.stringify(record.state)!==record.before)save_(record.state,record.file);return {ready:true};});}
+function doGet(e){
+ if(e&&e.parameter&&e.parameter.pagesBridge==='1'){
+  var parent=e.parameter.parentOrigin,nonce=e.parameter.nonce;
+  var allowed=PropertiesService.getScriptProperties().getProperty('TIKO_PAGES_ORIGIN')||'https://noatiko-sketch.github.io';
+  if(parent!==allowed||!/^https:\/\/[a-z0-9.-]+$/.test(parent)||!/^[a-f0-9-]{36}$/.test(nonce||''))return HtmlService.createHtmlOutput('Invalid bridge origin.');
+  var bridge=HtmlService.createTemplateFromFile('Bridge');
+  bridge.bridgeConfig=JSON.stringify({parentOrigin:parent,nonce:nonce,requiresCode:getClientConfig().requiresCode}).replace(/</g,'\\u003c');
+  return bridge.evaluate().setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+ }
+ var template=HtmlService.createTemplateFromFile('Index');var blob=DriveApp.getFileById(TIKO.illustration).getBlob();template.illustrationSrc='data:image/png;base64,'+Utilities.base64Encode(blob.getBytes());return template.evaluate().setTitle('אוכל לשבת — משפחת טיקו').addMetaTag('viewport','width=device-width, initial-scale=1');
+}
+// Public HTML-service entrypoint. The server bridge token is never sent to Pages.
+function pagesRequest(request,code){
+ try{authorize_(code);}catch(error){return {status:401,body:{detail:'קוד הכניסה אינו נכון או שהחשבון אינו מורשה.'}};}
+ try{
+  if(!request||typeof request!=='object')throw {status:400,message:'בקשה לא תקינה.'};
+  if(request.resource==='connect')return {status:200,body:{connected:true}};
+  if(!['אמא','אבא','נעה','אביגיל','יפעת'].includes(request.actor))throw {status:401,message:'יש לבחור פרופיל.'};
+  if(!['GET','POST'].includes(request.method))throw {status:400,message:'פעולה לא מוכרת.'};
+  var action=request.method==='GET'?{}:request.action;
+  if(!action||typeof action!=='object'||Array.isArray(action))throw {status:400,message:'פעולה לא מוכרת.'};
+  action=Object.assign({},action,{actor:request.actor,compact:true});
+  if(request.resource==='shopping'){
+   if(request.method==='GET')action.type='shopping_snapshot';
+   if(!['shopping_snapshot','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
+   return {status:200,body:shoppingRequest_(action)};
+  }
+  if(request.resource!=='menu')throw {status:400,message:'פעולה לא מוכרת.'};
+  if(request.method==='GET')return {status:200,body:readSnapshot_({actor:request.actor,saturday:request.saturday,viewed:!!request.viewed,compact:true})};
+  if(typeof action.type!=='string'||action.type.startsWith('shopping_'))throw {status:400,message:'פעולה לא מוכרת.'};
+  return {status:200,body:runAction(action,code)};
+ }catch(error){return {status:error.status||503,body:{detail:String(error.message||error)}};}
+}
 function getMenu(day,code){authorize_(code);return readSnapshot_({saturday:day});}
 function runAction(action,code){authorize_(code);return locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,action,action.actor||'משפחה',ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;});}
 function reply_(body){return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);}

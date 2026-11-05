@@ -17,7 +17,10 @@ Read README.md first. Keep changes small and preserve the current Hebrew RTL des
 - Preserve optimistic background saves, conflict detection, rollback, attribution and original data. Do not cache shared state.
 
 ## Publishing
-- GitHub Actions validates changes but does not publish production.
-- The owner publishes the current merged main through the existing Sites project. Reconcile any newer Sites changes before importing GitHub code; never replace current production code with an older checkout.
-- If the backend changed, deploy its matching Apps Script bundle before activating frontend behavior that depends on it. Keep existing access settings and database IDs. Verify the live API version and original state ID.
-- Synchronize any changes made during publication back to GitHub. Do not leave two diverging sources of truth.
+- The user selected GitHub Pages + Google only. Do not add Vercel or another host.
+- npm run build creates the static React app in dist-pages. pages.yml publishes main after checks. Do not publish this static port back to Sites.
+- The same Google deployment performs data operations via the origin/nonce-bound Bridge HTML and google.script.run. Never expose TIKO_BRIDGE_TOKEN, family code or OAuth credentials in the frontend.
+- Keep Google authorization checks, family actor validation, locks, conflict detection and idempotent mutations. Never seed a second database or fall back to D1 in production.
+- Generate google/Code.gs after editing the shared engine or wrapper. Google code deploys before Pages when changed; see docs/github-hosting.md for one-time OAuth setup and the initial manual path.
+- Preserve the existing Index and manifest when uploading Google files. Keep the same deployment URL, Script Properties and original Drive file.
+- Keep the old Site and old archive automation until the new UI, Google connection and independent Google archive trigger are verified.

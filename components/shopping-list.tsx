@@ -1,4 +1,5 @@
 'use client';
+import {apiFetch} from '@/lib/google-transport';
 import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
 import {shoppingCategories,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
@@ -18,7 +19,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   flight.current?.abort();const controller=new AbortController();flight.current=controller;const started=version.current;
   const timeout=setTimeout(()=>controller.abort(),35000);if(!background)setLoading(true);
   try{
-   const r=await fetch('/api/shopping',{cache:'no-store',headers:{'x-family-member':encodeURIComponent(person)},signal:controller.signal});
+   const r=await apiFetch('/api/shopping',{cache:'no-store',headers:{'x-family-member':encodeURIComponent(person)},signal:controller.signal});
    const result=await r.json() as ShoppingSnapshot & {detail?:string};if(!mounted.current||started!==version.current||flight.current!==controller)return;
    if(!r.ok||result.status!=='ready'||!result.shopping)throw Error(result.detail||'רשימת הקניות לא נטענה.');
    snapshotRef.current=result;setSnapshot(result);
@@ -42,7 +43,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   try{
    const action={...fields,mutationId:crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('')};
    await queue.current!.enqueue(action,async revision=>{
-    const r=await fetch('/api/shopping',{method:'POST',cache:'no-store',signal:AbortSignal.timeout(35000),headers:{'content-type':'application/json','x-family-member':encodeURIComponent(person)},body:JSON.stringify({...action,revision})});
+    const r=await apiFetch('/api/shopping',{method:'POST',cache:'no-store',signal:AbortSignal.timeout(35000),headers:{'content-type':'application/json','x-family-member':encodeURIComponent(person)},body:JSON.stringify({...action,revision})});
     const result=await r.json() as {snapshot?:ShoppingSnapshot;detail?:string};if(!r.ok||!result.snapshot?.shopping)throw Error(result.detail||'לא התקבל אישור שמירה.');return result.snapshot;
    });return true;
   }catch(e){

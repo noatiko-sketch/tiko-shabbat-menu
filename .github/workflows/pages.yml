@@ -1,0 +1,71 @@
+name: Publish Tiko to Google and GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      google_already_deployed:
+        description: 'Initial setup only: matching Google code was deployed and verified manually'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tiko-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm install --global pnpm@11.25.0
+      - run: pnpm install --frozen-lockfile
+      - run: npm run check
+      - name: Build static website
+        env:
+          VITE_TIKO_GOOGLE_URL: https://script.google.com/macros/s/AKfycbxaQXG0Dgfc9ey--b7jGO6QBHxfeF0fUXH_qJJWKB8ZYRpnebFIJ0TUabzDRMgJRhqR/exec
+        run: npm run build
+      - name: Detect backend changes
+        id: backend
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ -n "$BEFORE_SHA" ] && git cat-file -e "$BEFORE_SHA" 2>/dev/null && git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- google/Code.gs google/Bridge.html google/deployment.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish matching Google backend first
+        if: ${{ !inputs.google_already_deployed && steps.backend.outputs.changed == 'true' }}
+        env:
+          GOOGLE_SCRIPT_OAUTH: ${{ secrets.GOOGLE_SCRIPT_OAUTH }}
+          TIKO_GOOGLE_SCRIPT_ID: ${{ vars.TIKO_GOOGLE_SCRIPT_ID }}
+        run: node scripts/deploy-google.mjs
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist-pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - name: Publish static website
+        id: publish
+        uses: actions/deploy-pages@v4
