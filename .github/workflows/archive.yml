@@ -1,0 +1,30 @@
+name: Archive completed Shabbat menus
+
+on:
+  schedule:
+    - cron: '15 0 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shabbat-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    if: ${{ vars.TIKO_SITE_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Archive in the existing Google Drive database
+        env:
+          TIKO_SITE_URL: ${{ vars.TIKO_SITE_URL }}
+        run: node scripts/archive-shabbat.mjs
