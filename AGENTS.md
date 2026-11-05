@@ -17,7 +17,9 @@ Read README.md first. Keep changes small and preserve the current Hebrew RTL des
 - Preserve optimistic background saves, conflict detection, rollback, attribution and original data. Do not cache shared state.
 
 ## Publishing
-- GitHub Actions validates changes but does not publish production.
-- The owner publishes the current merged main through the existing Sites project. Reconcile any newer Sites changes before importing GitHub code; never replace current production code with an older checkout.
-- If the backend changed, deploy its matching Apps Script bundle before activating frontend behavior that depends on it. Keep existing access settings and database IDs. Verify the live API version and original state ID.
-- Synchronize any changes made during publication back to GitHub. Do not leave two diverging sources of truth.
+- The user authorized migration away from ChatGPT Sites, preserving the original Drive data and using automatic GitHub publication without Cloudflare or a purchased domain.
+- The new target is Next.js on Vercel, built with npm run build. Merge to main publishes automatically after the host is connected. See docs/github-hosting.md for remaining cutover checks.
+- Production routes use server-only process.env.TIKO_BRIDGE_URL and TIKO_BRIDGE_TOKEN. Never expose those through NEXT_PUBLIC_, logs, source control or PR descriptions. Missing configuration must fail closed; never fall back to D1.
+- Keep live secrets out of Preview environments; branch deployments are disabled. Validate with isolated data.
+- Keep the existing Site live until the new host, shared Git publication and independent weekly archive schedule are verified. Do not publish this Node.js port back to Sites.
+- If the shared backend changes, regenerate google/Code.gs, run tests, and deploy the matching Apps Script bundle before enabling dependent behavior.
