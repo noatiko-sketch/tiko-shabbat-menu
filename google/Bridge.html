@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="UTF-8"></head><body><script>
+(function(){
+ 'use strict';
+ const config=<?!= bridgeConfig ?>;
+ const channel='tiko-google-v1';
+ const send=value=>window.top.postMessage(Object.assign({channel,nonce:config.nonce},value),config.parentOrigin);
+ window.addEventListener('message',event=>{
+  const data=event.data;
+  if(event.source!==window.top||event.origin!==config.parentOrigin||!data||data.channel!==channel||data.nonce!==config.nonce||data.kind!=='request'||typeof data.id!=='string')return;
+  const reply=result=>send({kind:'reply',id:data.id,status:result.status,body:result.body});
+  google.script.run.withSuccessHandler(reply).withFailureHandler(()=>reply({status:503,body:{detail:'החיבור למאגר אינו זמין כרגע.'}})).pagesRequest(data.payload,data.code);
+ });
+ send({kind:'ready',requiresCode:config.requiresCode});
+})();
+</script></body></html>
