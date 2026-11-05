@@ -93,3 +93,30 @@ export function reserveShoppingScan(original:Record<string,any>,mutationId:strin
  const state={...original,shopping_scan_usage:{day,requests:[...requests,{id:mutationId,actor}]}};
  return {state,changed:true,response:{snapshot:shoppingSnapshot(state),scan_reserved:true}};
 }
+
+// Compare Jerusalem wall-clock dates so Saturday noon follows DST automatically.
+function shoppingLocalTime(now:string){
+ const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(now));
+ const get=(type:string)=>parts.find(p=>p.type===type)!.value;
+ return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
+}
+export function clearWeeklyBought(state:Record<string,any>,now:string){
+ if(!state.shopping)return false;
+ const local=shoppingLocalTime(now),date=new Date(local.slice(0,10)+'T12:00:00Z');
+ let days=(date.getUTCDay()+1)%7;
+ if(days===0&&local.slice(11)<'12:00:00')days=7;
+ date.setUTCDate(date.getUTCDate()-days);
+ const cutoff=date.toISOString().slice(0,10)+'T12:00:00';
+ if(state.shopping_bought_cleared_through>=cutoff)return false;
+ const shopping=readShopping(state);
+ shopping.items=shopping.items.filter(item=>{
+  if(!item.bought)return true;
+  // A delayed invocation must retain purchases made after this week's cutoff.
+  if(!item.updated_at||!Number.isFinite(Date.parse(item.updated_at)))return true;
+  return shoppingLocalTime(item.updated_at)>=cutoff;
+ });
+ if(shopping.items.length===state.shopping.items.length)return false;
+ shopping.revision++;state.shopping=shopping;
+ state.shopping_bought_cleared_through=cutoff;
+ return true;
+}

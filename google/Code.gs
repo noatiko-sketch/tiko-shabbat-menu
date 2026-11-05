@@ -67,12 +67,29 @@ function reply_(body){return ContentService.createTextOutput(JSON.stringify(body
 function shoppingRequest_(body){
  if(!['אמא','אבא','נעה','אביגיל','יפעת'].includes(body.actor))throw {status:401,message:'יש לבחור פרופיל.'};
  function read(){var file=DriveApp.getFileById(TIKO.state);return {file:file,state:JSON.parse(file.getBlob().getDataAsString('UTF-8'))};}
- if(body.type==='shopping_snapshot')return TikoDrive.shoppingSnapshot(read().state);
- return locked_(function(){var record=read(),now=new Date().toISOString(),result=body.type==='shopping_scan_reserve'?TikoDrive.reserveShoppingScan(record.state,body.mutationId,body.actor,now):TikoDrive.shoppingAction(record.state,body,body.actor,now);if(result.changed)save_(result.state,record.file);return result.response;});
+ if(body.type==='shopping_snapshot'){
+  var preview=read();
+  if(!TikoDrive.clearWeeklyBought(preview.state,new Date().toISOString()))return TikoDrive.shoppingSnapshot(preview.state);
+  return locked_(function(){var record=read();if(TikoDrive.clearWeeklyBought(record.state,new Date().toISOString()))save_(record.state,record.file);return TikoDrive.shoppingSnapshot(record.state);});
+ }
+ return locked_(function(){var record=read(),now=new Date().toISOString();if(TikoDrive.clearWeeklyBought(record.state,now))save_(record.state,record.file);var result=body.type==='shopping_scan_reserve'?TikoDrive.reserveShoppingScan(record.state,body.mutationId,body.actor,now):TikoDrive.shoppingAction(record.state,body,body.actor,now);if(result.changed)save_(result.state,record.file);return result.response;});
 }
 function doPost(e){try{var b=JSON.parse(e.postData.contents||'{}'),token=PropertiesService.getScriptProperties().getProperty('TIKO_BRIDGE_TOKEN');if(!token||token.length<32||b.token!==token)return reply_({http_status:401,detail:'Unauthorized'});if(typeof b.type==='string'&&b.type.startsWith('shopping_'))return reply_(shoppingRequest_(b));if(b.type==='snapshot')return reply_(readSnapshot_(b));return reply_(locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,b,b.actor,ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;}));}catch(error){return reply_({http_status:error.status||503,detail:String(error.message||error)});}}
 // Run as owner once after the Site enters migration mode. Idempotent; Drive wins conflicts.
 function setupDriveBridge(){var active=Session.getActiveUser().getEmail(),owner=Session.getEffectiveUser().getEmail();if(!active||active!==owner)throw Error('יש להריץ מתוך העורך בחשבון בעלת הפרויקט.');return locked_(function(){var token=PropertiesService.getScriptProperties().getProperty('TIKO_BRIDGE_TOKEN');if(!token||token.length<32)throw Error('חסר TIKO_BRIDGE_TOKEN בהגדרות הפרויקט.');var ctx=context_(),s=load_(ctx);if(!s.site_migration_v2){var response=UrlFetchApp.fetch('https://tiko-shabbat-menu.noatiko.chatgpt.site/api/drive-migration',{method:'post',contentType:'application/json',headers:{'x-tiko-bridge-token':token},payload:'{}',muteHttpExceptions:true});if(response.getResponseCode()!==200)throw Error('העברת הנתונים נעצרה: '+response.getResponseCode());var data=JSON.parse(response.getContentText());DriveApp.getFileById(TIKO.state).makeCopy('state-backup-before-shared-drive-'+ctx.now.replace(/[:.]/g,'-')+'.json',DriveApp.getFolderById(TIKO.folder));s=TikoDrive.mergeSiteExport(s,data,ctx);save_(s);}console.log(JSON.stringify({ready:true,storage:'google-drive',state_id:TIKO.state,migration:s.site_migration_v2,menus:Object.keys(s.menu_drafts).length,dishes:s.dish_catalog.length}));return {ready:true};});}
+
+// Private trigger target: not callable through google.script.run.
+function clearWeeklyBought_(){return locked_(function(){var file=DriveApp.getFileById(TIKO.state),state=JSON.parse(file.getBlob().getDataAsString('UTF-8'));if(TikoDrive.clearWeeklyBought(state,new Date().toISOString()))save_(state,file);});}
+// Run once in the Apps Script editor as the project owner after deployment.
+function setupWeeklyShoppingCleanup(){
+ var active=Session.getActiveUser().getEmail(),owner=Session.getEffectiveUser().getEmail();
+ if(!active||active!==owner)throw Error('יש להריץ מתוך העורך בחשבון בעלת הפרויקט.');
+ return locked_(function(){
+  var existing=ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()==='clearWeeklyBought_';});
+  if(!existing.length)ScriptApp.newTrigger('clearWeeklyBought_').timeBased().everyMinutes(1).create();
+  return {ready:true,timeZone:'Asia/Jerusalem',schedule:'Saturday 12:00'};
+ });
+}
 
 var TikoDrive=(function(){
 // Shared with Apps Script: no browser/Node URL API required.
@@ -658,6 +675,39 @@ function reserveShoppingScan(original, mutationId, actor, now) {
     const state = { ...original, shopping_scan_usage: { day, requests: [...requests, { id: mutationId, actor }] } };
     return { state, changed: true, response: { snapshot: shoppingSnapshot(state), scan_reserved: true } };
 }
+// Compare Jerusalem wall-clock dates so Saturday noon follows DST automatically.
+function shoppingLocalTime(now) {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now));
+    const get = (type) => parts.find(p => p.type === type).value;
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
+}
+function clearWeeklyBought(state, now) {
+    if (!state.shopping)
+        return false;
+    const local = shoppingLocalTime(now), date = new Date(local.slice(0, 10) + 'T12:00:00Z');
+    let days = (date.getUTCDay() + 1) % 7;
+    if (days === 0 && local.slice(11) < '12:00:00')
+        days = 7;
+    date.setUTCDate(date.getUTCDate() - days);
+    const cutoff = date.toISOString().slice(0, 10) + 'T12:00:00';
+    if (state.shopping_bought_cleared_through >= cutoff)
+        return false;
+    const shopping = readShopping(state);
+    shopping.items = shopping.items.filter(item => {
+        if (!item.bought)
+            return true;
+        // A delayed invocation must retain purchases made after this week's cutoff.
+        if (!item.updated_at || !Number.isFinite(Date.parse(item.updated_at)))
+            return true;
+        return shoppingLocalTime(item.updated_at) >= cutoff;
+    });
+    if (shopping.items.length === state.shopping.items.length)
+        return false;
+    shopping.revision++;
+    state.shopping = shopping;
+    state.shopping_bought_cleared_through = cutoff;
+    return true;
+}
 
-return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats,shoppingSnapshot,shoppingAction,reserveShoppingScan};
+return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats,shoppingSnapshot,shoppingAction,reserveShoppingScan,clearWeeklyBought};
 })();
