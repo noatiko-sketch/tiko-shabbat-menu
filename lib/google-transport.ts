@@ -64,11 +64,11 @@ export function googleTransport(){
 export async function apiFetch(input:string,init:RequestInit={}):Promise<Response>{
  if(!document.querySelector('meta[name="tiko-google"]'))return fetch(input,init);
  const url=new URL(input,location.origin),method=init.method||'GET';
- if(!['/api/menu','/api/shopping'].includes(url.pathname)||!['GET','POST'].includes(method))throw Error('פעולה לא מוכרת.');
+ if(!['/api/menu','/api/shopping','/api/shopping/scan'].includes(url.pathname)||!['GET','POST'].includes(method))throw Error('פעולה לא מוכרת.');
  const actor=decodeURIComponent(new Headers(init.headers).get('x-family-member')||'');
  const action=method==='POST'?JSON.parse(String(init.body||'{}')):undefined;
- const reply=await googleTransport().request({resource:url.pathname==='/api/menu'?'menu':'shopping',method,actor,action,saturday:url.searchParams.get('saturday'),viewed:url.searchParams.get('viewed')==='1'},init.signal||undefined);
- if(reply.status===200){
+ const reply=await googleTransport().request({resource:url.pathname==='/api/menu'?'menu':url.pathname==='/api/shopping/scan'?'shopping_scan':'shopping',method,actor,action,saturday:url.searchParams.get('saturday'),viewed:url.searchParams.get('viewed')==='1'},init.signal||undefined);
+ if(reply.status===200&&url.pathname!=='/api/shopping/scan'){
   const snapshot=method==='GET'?reply.body:reply.body?.snapshot;
   if(snapshot?.status!=='ready'||snapshot?.storage!=='google-drive'||snapshot?.state_id!=='1wc9VbyXuLl9QTWVPLUYiU1vUQjz1vmZI')throw Error('החיבור אינו מצביע על המאגר המשפחתי המקורי.');
  }

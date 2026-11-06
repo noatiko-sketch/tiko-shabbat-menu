@@ -1,4 +1,5 @@
 'use client';
+import {apiFetch} from '@/lib/google-transport';
 import {useEffect,useRef,useState,type ChangeEvent} from 'react';
 import {Camera,Check,ImagePlus,LoaderCircle,Plus,Trash2,X} from 'lucide-react';
 import {shoppingCategories,type ShoppingCategory,type ShoppingImportItem} from '@/lib/shopping';
@@ -22,7 +23,7 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
   if(!image||scanning)return;const attempt=++version.current,controller=new AbortController();flight.current=controller;setScanning(true);setError('');setRows(null);
   const timer=setTimeout(()=>controller.abort(),85000);
   try{
-   const response=await fetch('/api/shopping/scan',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','x-family-member':encodeURIComponent(person)},body:JSON.stringify({image}),signal:controller.signal});
+   const response=await apiFetch('/api/shopping/scan',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','x-family-member':encodeURIComponent(person)},body:JSON.stringify({image}),signal:controller.signal});
    const result=await response.json() as {detail?:string};
    if(!mounted.current||attempt!==version.current)return;
    if(!response.ok)throw Error(result.detail||'הפענוח נכשל. אפשר לנסות שוב או להוסיף ידנית.');
@@ -47,7 +48,7 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
  return <section className="shopping-photo" aria-label="צילום רשימת קניות">
   <div className="shopping-photo-toolbar"><div className="shopping-photo-actions">
    <button type="button" disabled={busy||importing||preparing} className="shopping-photo-camera" onClick={()=>camera.current?.click()}><Camera size={18}/> צלם רשימה</button>
-   <button type="button" disabled={busy||importing||preparing} onClick={()=>gallery.current?.click()}><ImagePlus size={18}/> בחירת תמונה</button>
+   <button type="button" disabled={busy||importing||preparing} onClick={()=>gallery.current?.click()}><ImagePlus size={18}/> בחירה מהגלריה</button>
    <input hidden type="file" accept="image/*" capture="environment" ref={camera} onChange={e=>void choose(e)} aria-label="צילום רשימה במצלמה"/>
    <input hidden type="file" accept="image/*" ref={gallery} onChange={e=>void choose(e)} aria-label="בחירת צילום רשימה"/>
   </div></div>
@@ -56,7 +57,7 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
   {preparing&&<p className="shopping-photo-status" role="status"><LoaderCircle className="spin" size={18}/>מכינים את התמונה…</p>}
   {image&&<div className="shopping-photo-layout"><div className="shopping-photo-review">
    <div className="shopping-photo-review-title"><h3>{rows?'בדיקת המוצרים שפוענחו':'התמונה מוכנה לפענוח'}</h3><button type="button" disabled={importing} aria-label="סגירת צילום הרשימה" onClick={cancel}><X size={18}/></button></div>
-   {rows===null?<><p className="shopping-hint">התמונה נשלחת ל־OpenAI. הוספה רק באישור שלך.</p><button type="button" className="shopping-primary" disabled={scanning||busy} onClick={()=>void analyze()}>{scanning?<LoaderCircle className="spin" size={18}/>:<Camera size={18}/>} {scanning?'מפענחים את הרשימה…':'פענח את התמונה'}</button></>:<>
+   {rows===null?<><p className="shopping-hint">בלחיצה על פענוח התמונה תישלח ל־Google Gemini. במסלול החינמי Google עשויה להשתמש בה לשיפור השירות. המוצרים יתווספו רק לאחר בדיקה ואישור שלך.</p><button type="button" className="shopping-primary" disabled={scanning||busy} onClick={()=>void analyze()}>{scanning?<LoaderCircle className="spin" size={18}/>:<Camera size={18}/>} {scanning?'מפענחים את הרשימה…':'פענח את התמונה'}</button></>:<>
     <p className="shopping-hint">בדקו ותקנו לפני ההוספה.</p>
     {warning&&<p className="shopping-photo-warning" role="status">{warning}</p>}
     {rows.length===0&&<p className="shopping-hint">לא זוהו מוצרים</p>}
