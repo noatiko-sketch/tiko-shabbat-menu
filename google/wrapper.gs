@@ -103,12 +103,11 @@ function scanShoppingPhoto_(action,actor){
  // Reserve under the existing family file lock, then release before the network call.
  shoppingRequest_({type:'shopping_scan_reserve',actor:actor,mutationId:Utilities.getUuid()});
  var response;
- try{response=UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',{
+ try{response=UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',{
   method:'post',contentType:'application/json',headers:{'x-goog-api-key':PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')},payload:JSON.stringify(payload),muteHttpExceptions:true
  });}catch(error){throw {status:502,message:'לא ניתן להתחבר לשירות הפענוח. נסו שוב מאוחר יותר.'};}
  var status=response.getResponseCode();
- if(status===429)throw {status:429,message:'מכסת הפענוח החינמית נוצלה או שיש עומס זמני. נסו שוב מאוחר יותר. אין מעבר לשירות בתשלום.'};
- if(status<200||status>=300)throw {status:502,message:'שירות הפענוח אינו זמין כרגע. יש לבדוק את הגדרת Gemini או לנסות מאוחר יותר.'};
+ if(status<200||status>=300)throw TikoDrive.geminiShoppingError(status,response.getContentText());
  var result;try{result=JSON.parse(response.getContentText());}catch(error){throw {status:502,message:'התקבלה תשובת פענוח לא תקינה. נסו שוב.'};}
  return TikoDrive.geminiShoppingResult(result);
 }
