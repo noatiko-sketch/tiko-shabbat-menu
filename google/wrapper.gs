@@ -49,6 +49,10 @@ function pagesRequest(request,code){
   var action=request.method==='GET'?{}:request.action;
   if(!action||typeof action!=='object'||Array.isArray(action))throw {status:400,message:'פעולה לא מוכרת.'};
   action=Object.assign({},action,{actor:request.actor,compact:true});
+  if(request.resource==='shopping_scan'){
+   if(request.method==='GET')return {status:200,body:{configured:shoppingScanConfigured_()}};
+   return {status:200,body:scanShoppingPhoto_(action,request.actor)};
+  }
   if(request.resource==='shopping'){
    if(request.method==='GET')action.type='shopping_snapshot';
    if(!['shopping_snapshot','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
@@ -89,4 +93,22 @@ function setupWeeklyShoppingCleanup(){
   if(!existing.length)ScriptApp.newTrigger('clearWeeklyBought_').timeBased().everyMinutes(1).create();
   return {ready:true,timeZone:'Asia/Jerusalem',schedule:'Saturday 12:00'};
  });
+}
+
+// Gemini uses a separate, free-tier-only Google project. Never fall back to a paid provider.
+function shoppingScanConfigured_(){var props=PropertiesService.getScriptProperties();return !!props.getProperty('GEMINI_API_KEY')&&props.getProperty('TIKO_GEMINI_FREE_ONLY')==='true';}
+function scanShoppingPhoto_(action,actor){
+ if(!shoppingScanConfigured_())throw {status:503,message:'פענוח התמונות עדיין לא מחובר. יש להגדיר בגוגל מפתח Gemini מפרויקט ללא חיוב ולאשר שימוש במסלול החינמי בלבד. אפשר להוסיף מוצרים ידנית בינתיים.'};
+ var payload=TikoDrive.geminiShoppingRequest(action.image);
+ // Reserve under the existing family file lock, then release before the network call.
+ shoppingRequest_({type:'shopping_scan_reserve',actor:actor,mutationId:Utilities.getUuid()});
+ var response;
+ try{response=UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',{
+  method:'post',contentType:'application/json',headers:{'x-goog-api-key':PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')},payload:JSON.stringify(payload),muteHttpExceptions:true
+ });}catch(error){throw {status:502,message:'לא ניתן להתחבר לשירות הפענוח. נסו שוב מאוחר יותר.'};}
+ var status=response.getResponseCode();
+ if(status===429)throw {status:429,message:'מכסת הפענוח החינמית נוצלה או שיש עומס זמני. נסו שוב מאוחר יותר. אין מעבר לשירות בתשלום.'};
+ if(status<200||status>=300)throw {status:502,message:'שירות הפענוח אינו זמין כרגע. יש לבדוק את הגדרת Gemini או לנסות מאוחר יותר.'};
+ var result;try{result=JSON.parse(response.getContentText());}catch(error){throw {status:502,message:'התקבלה תשובת פענוח לא תקינה. נסו שוב.'};}
+ return TikoDrive.geminiShoppingResult(result);
 }

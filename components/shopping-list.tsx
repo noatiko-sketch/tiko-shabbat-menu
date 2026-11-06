@@ -4,6 +4,7 @@ import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
 import {shoppingCategories,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
 import {confirmShoppingAddition} from '@/lib/shopping-addition';
+import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 import {ShoppingMutations} from '@/lib/shopping-mutations';
 
 export function ShoppingList({person,onSavingChange}:{person:string;onSavingChange:(saving:boolean)=>void}){
@@ -69,6 +70,12 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   {!person?<p className="shopping-empty">יש לבחור בן משפחה למעלה כדי לפתוח את רשימת הקניות.</p>:<>
    {error&&<div className="shopping-error" role="alert"><p>{error}</p><button type="button" disabled={saving} onClick={()=>{setError('');void refresh();}}>טעינה מחדש</button></div>}
    {loading&&!snapshot?<p className="shopping-loading" role="status"><LoaderCircle className="spin" size={20}/>טוענים את הרשימה המשפחתית…</p>:!snapshot?<p className="shopping-empty">הרשימה אינה זמינה כרגע. אפשר לנסות שוב באמצעות טעינה מחדש.</p>:<>
+    <ShoppingPhotoImport person={person} busy={saving} onImport={async items=>{
+     if(!snapshotRef.current)return false;
+     const confirmed=confirmShoppingAddition(snapshotRef.current.shopping,{type:'shopping_import',items},message=>window.confirm(message));
+     if(!confirmed)return null;
+     return await actApproved(confirmed)?confirmed.items!.length:false;
+    }}/>
     <div className={`shopping-layout ${showAdd?'is-adding':''}`}><div className="shopping-active">
      <div className="shopping-section-heading"><h2 className="sr-only">לקנייה</h2><span role="status" className={saving?'shopping-saving':''}>{saving?<><LoaderCircle className="spin" size={14}/> שומרים…</>:error?'יש לבדוק את השמירה':<></>}</span></div>
      {remaining.length===0&&<p className="shopping-empty">{bought.length?'הכול נקנה':'הרשימה ריקה'}</p>}
