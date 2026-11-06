@@ -13,7 +13,7 @@ export function geminiShoppingRequest(image:unknown){
  return {
   systemInstruction:{parts:[{text:shoppingScanInstructions}]},
   contents:[{role:'user',parts:[{text:'פענח את רשימת הקניות שבתמונה לבדיקה ותיקון לפני הוספה.'},{inlineData:{mimeType:'image/'+type,data:encoded}}]}],
-  generationConfig:{responseMimeType:'application/json',responseJsonSchema:shoppingScanSchema,maxOutputTokens:6000,thinkingConfig:{thinkingBudget:0}},
+  generationConfig:{responseMimeType:'application/json',responseJsonSchema:shoppingScanSchema,maxOutputTokens:6000,thinkingConfig:{thinkingLevel:'MINIMAL'}},
  };
 }
 export function geminiShoppingResult(payload:any){
@@ -23,4 +23,22 @@ export function geminiShoppingResult(payload:any){
   const text=(candidate.content?.parts||[]).filter((p:any)=>typeof p.text==='string'&&!p.thought).map((p:any)=>p.text).join('');
   return parseShoppingScan(JSON.parse(text));
  }catch{throw {status:502,message:'התקבלה רשימה לא תקינה. נסו צילום ברור יותר.'};}
+}
+
+// Classify provider errors without returning raw provider messages, keys or project IDs.
+export function geminiShoppingError(status:number,body:string){
+ let error:any={};try{error=JSON.parse(body.slice(0,16000))?.error||{};}catch{}
+ const reasons=Array.isArray(error.details)?error.details.map((d:any)=>typeof d?.reason==='string'?d.reason:'').join(' '):'';
+ const message=typeof error.message==='string'?error.message.toLowerCase():'';
+ const reply=(code:string,text:string)=>({status:status===429?429:502,message:`${text} (Gemini ${status}: ${code})`});
+ if(/API_KEY_INVALID|API_KEY_EXPIRED/.test(reasons)||status===401||/api key not valid|api key expired/.test(message))return reply('KEY_INVALID','מפתח Gemini אינו תקין או שפג תוקפו. יש לבדוק את המפתח ששמור בהגדרות גוגל.');
+ if(/SERVICE_DISABLED/.test(reasons))return reply('API_DISABLED','שירות Gemini API אינו מופעל בפרויקט של המפתח.');
+ if(/API_KEY_SERVICE_BLOCKED|API_KEY_HTTP_REFERRER_BLOCKED|API_KEY_IP_ADDRESS_BLOCKED/.test(reasons))return reply('KEY_RESTRICTED','ההגבלות על מפתח Gemini חוסמות פנייה מתוך האפליקציה.');
+ if(/reported as leaked|key was leaked/.test(message))return reply('KEY_BLOCKED','גוגל חסמה את המפתח. יש ליצור מפתח חלופי ולשמור אותו בהגדרות גוגל.');
+ if(/location is not supported|country is not supported/.test(message))return reply('REGION_UNSUPPORTED','שירות Gemini אינו זמין במיקום שבו גוגל מריצה את הבקשה.');
+ if(status===403)return reply('ACCESS_DENIED','גוגל דחתה את הרשאת הפענוח. יש לבדוק את הרשאות המפתח והפרויקט.');
+ if(status===404)return reply('MODEL_UNAVAILABLE','מודל הפענוח אינו זמין לפרויקט הזה. נדרש עדכון בחיבור של טיקו.');
+ if(status===400)return reply('REQUEST_INVALID','גוגל דחתה את מבנה בקשת הפענוח. נדרש תיקון בחיבור של טיקו.');
+ if(status===429)return reply('QUOTA','מכסת הפענוח החינמית נוצלה או שיש עומס זמני. נסו שוב מאוחר יותר. אין מעבר לשירות בתשלום.');
+ return reply(status>=500?'TEMPORARY':'PROVIDER_ERROR',status>=500?'תקלה זמנית בשירות Gemini. נסו שוב מאוחר יותר.':'שירות Gemini דחה את הבקשה. יש לבדוק את הגדרת החיבור.');
 }

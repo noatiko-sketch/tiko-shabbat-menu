@@ -103,12 +103,11 @@ function scanShoppingPhoto_(action,actor){
  // Reserve under the existing family file lock, then release before the network call.
  shoppingRequest_({type:'shopping_scan_reserve',actor:actor,mutationId:Utilities.getUuid()});
  var response;
- try{response=UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',{
+ try{response=UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',{
   method:'post',contentType:'application/json',headers:{'x-goog-api-key':PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')},payload:JSON.stringify(payload),muteHttpExceptions:true
  });}catch(error){throw {status:502,message:'לא ניתן להתחבר לשירות הפענוח. נסו שוב מאוחר יותר.'};}
  var status=response.getResponseCode();
- if(status===429)throw {status:429,message:'מכסת הפענוח החינמית נוצלה או שיש עומס זמני. נסו שוב מאוחר יותר. אין מעבר לשירות בתשלום.'};
- if(status<200||status>=300)throw {status:502,message:'שירות הפענוח אינו זמין כרגע. יש לבדוק את הגדרת Gemini או לנסות מאוחר יותר.'};
+ if(status<200||status>=300)throw TikoDrive.geminiShoppingError(status,response.getContentText());
  var result;try{result=JSON.parse(response.getContentText());}catch(error){throw {status:502,message:'התקבלה תשובת פענוח לא תקינה. נסו שוב.'};}
  return TikoDrive.geminiShoppingResult(result);
 }
@@ -791,7 +790,7 @@ function geminiShoppingRequest(image) {
     return {
         systemInstruction: { parts: [{ text: shoppingScanInstructions }] },
         contents: [{ role: 'user', parts: [{ text: 'פענח את רשימת הקניות שבתמונה לבדיקה ותיקון לפני הוספה.' }, { inlineData: { mimeType: 'image/' + type, data: encoded } }] }],
-        generationConfig: { responseMimeType: 'application/json', responseJsonSchema: shoppingScanSchema, maxOutputTokens: 6000, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { responseMimeType: 'application/json', responseJsonSchema: shoppingScanSchema, maxOutputTokens: 6000, thinkingConfig: { thinkingLevel: 'MINIMAL' } },
     };
 }
 function geminiShoppingResult(payload) {
@@ -806,6 +805,36 @@ function geminiShoppingResult(payload) {
         throw { status: 502, message: 'התקבלה רשימה לא תקינה. נסו צילום ברור יותר.' };
     }
 }
+// Classify provider errors without returning raw provider messages, keys or project IDs.
+function geminiShoppingError(status, body) {
+    let error = {};
+    try {
+        error = JSON.parse(body.slice(0, 16000))?.error || {};
+    }
+    catch { }
+    const reasons = Array.isArray(error.details) ? error.details.map((d) => typeof d?.reason === 'string' ? d.reason : '').join(' ') : '';
+    const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+    const reply = (code, text) => ({ status: status === 429 ? 429 : 502, message: `${text} (Gemini ${status}: ${code})` });
+    if (/API_KEY_INVALID|API_KEY_EXPIRED/.test(reasons) || status === 401 || /api key not valid|api key expired/.test(message))
+        return reply('KEY_INVALID', 'מפתח Gemini אינו תקין או שפג תוקפו. יש לבדוק את המפתח ששמור בהגדרות גוגל.');
+    if (/SERVICE_DISABLED/.test(reasons))
+        return reply('API_DISABLED', 'שירות Gemini API אינו מופעל בפרויקט של המפתח.');
+    if (/API_KEY_SERVICE_BLOCKED|API_KEY_HTTP_REFERRER_BLOCKED|API_KEY_IP_ADDRESS_BLOCKED/.test(reasons))
+        return reply('KEY_RESTRICTED', 'ההגבלות על מפתח Gemini חוסמות פנייה מתוך האפליקציה.');
+    if (/reported as leaked|key was leaked/.test(message))
+        return reply('KEY_BLOCKED', 'גוגל חסמה את המפתח. יש ליצור מפתח חלופי ולשמור אותו בהגדרות גוגל.');
+    if (/location is not supported|country is not supported/.test(message))
+        return reply('REGION_UNSUPPORTED', 'שירות Gemini אינו זמין במיקום שבו גוגל מריצה את הבקשה.');
+    if (status === 403)
+        return reply('ACCESS_DENIED', 'גוגל דחתה את הרשאת הפענוח. יש לבדוק את הרשאות המפתח והפרויקט.');
+    if (status === 404)
+        return reply('MODEL_UNAVAILABLE', 'מודל הפענוח אינו זמין לפרויקט הזה. נדרש עדכון בחיבור של טיקו.');
+    if (status === 400)
+        return reply('REQUEST_INVALID', 'גוגל דחתה את מבנה בקשת הפענוח. נדרש תיקון בחיבור של טיקו.');
+    if (status === 429)
+        return reply('QUOTA', 'מכסת הפענוח החינמית נוצלה או שיש עומס זמני. נסו שוב מאוחר יותר. אין מעבר לשירות בתשלום.');
+    return reply(status >= 500 ? 'TEMPORARY' : 'PROVIDER_ERROR', status >= 500 ? 'תקלה זמנית בשירות Gemini. נסו שוב מאוחר יותר.' : 'שירות Gemini דחה את הבקשה. יש לבדוק את הגדרת החיבור.');
+}
 
-return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats,shoppingSnapshot,shoppingAction,reserveShoppingScan,clearWeeklyBought,geminiShoppingRequest,geminiShoppingResult};
+return {initializeDrive,driveSnapshot,driveAction,mergeSiteExport,markDriveSeen,archiveCompletedShabbats,shoppingSnapshot,shoppingAction,reserveShoppingScan,clearWeeklyBought,geminiShoppingRequest,geminiShoppingResult,geminiShoppingError};
 })();
