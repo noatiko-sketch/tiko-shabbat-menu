@@ -12,6 +12,7 @@ export function confirmShoppingAddition(state:ShoppingState,action:Addition,conf
  const accept=(name:string,quantity?:string)=>{
   const existing=present.get(key(name));
   if(existing){
+   if(action.skipExisting)return false;
    const details=[existing.bought?'המוצר כבר סומן כנקנה.':'',existing.quantity?`הכמות ברשימה: ${existing.quantity}.`:'',quantity!==undefined?`הכמות תעודכן ל: ${quantity.trim()||'ללא כמות'}.`:'הכמות הקיימת תישמר.'].filter(Boolean).join('\n');
    if(!confirm(`״${name.trim()}״ — המוצר כבר ברשימה. האם להוסיף בכל זאת?\n${details}\nאישור יעדכן את השורה הקיימת ויעביר אותה למוצרים שצריך לקנות.`))return false;
   }
