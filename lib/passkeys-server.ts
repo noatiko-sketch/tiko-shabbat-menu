@@ -61,6 +61,6 @@ export function verifyPasskeyAuthentication(answer:any,challenge:PasskeyChalleng
  if(answer.response.userHandle!==null&&answer.response.userHandle!==undefined)passkeyCheck(answer.response.userHandle===credential.userId,'מפתח הגישה אינו שייך למשפחה.',401);
  let verified=false;try{verified=p256.verify(fromBase64url(answer.response.signature,220),join(data,hash(client)),fromBase64url(credential.publicKey,100),{format:'der',lowS:false,prehash:true});}catch{}
  passkeyCheck(verified,'אימות מפתח הגישה נכשל.',401);
- passkeyCheck(!(info.counter>0&&credential.counter>0&&info.counter<=credential.counter),'התקבלה תשובת אימות ישנה. השתמשו בקוד המשפחתי ובדקו את מפתח הגישה.',401);
+ passkeyCheck(!((info.counter>0||credential.counter>0)&&info.counter<=credential.counter),'התקבלה תשובת אימות ישנה. השתמשו בקוד המשפחתי ובדקו את מפתח הגישה.',401);
  credential.counter=info.counter;credential.backedUp=info.backedUp;credential.lastUsedAt=now;
 }

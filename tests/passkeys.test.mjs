@@ -54,7 +54,7 @@ test('registration requires code, trusted origin, valid RP hash and user verific
  const e=server();assert.equal(e.call('register_begin',{label:'phone'},'wrong').status,401);assert.equal(e.call('list',{},'wrong').status,401);
 });
 test('counter rollback is rejected, synced zero counters work, session expiry and recovery code changes invalidate access',()=>{
- const e=server(),d=enroll(e);assert.equal(login(e,d,{counter:2}).status,200);assert.equal(login(e,d,{counter:1}).status,401);
+ const e=server(),d=enroll(e);assert.equal(login(e,d,{counter:2}).status,200);assert.equal(login(e,d,{counter:1}).status,401);assert.equal(login(e,d,{counter:0}).status,401,'a positive signature counter cannot reset to zero');
  const e2=server(),d2=enroll(e2);assert.equal(login(e2,d2).status,200);const logged=login(e2,d2);assert.equal(logged.status,200);
  e2.props.TIKO_FAMILY_CODE='new-code';assert.equal(e2.s.pagesRequest({resource:'connect'},'',logged.body.session).status,401);
  e2.props.TIKO_FAMILY_CODE=code;e2.advance(8*60*60*1000+1);assert.equal(e2.s.pagesRequest({resource:'connect'},'',logged.body.session).status,401);

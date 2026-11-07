@@ -3178,7 +3178,7 @@ var TikoPasskeys = (() => {
         catch {
         }
         passkeyCheck(verified, "\u05D0\u05D9\u05DE\u05D5\u05EA \u05DE\u05E4\u05EA\u05D7 \u05D4\u05D2\u05D9\u05E9\u05D4 \u05E0\u05DB\u05E9\u05DC.", 401);
-        passkeyCheck(!(info.counter > 0 && credential.counter > 0 && info.counter <= credential.counter), "\u05D4\u05EA\u05E7\u05D1\u05DC\u05D4 \u05EA\u05E9\u05D5\u05D1\u05EA \u05D0\u05D9\u05DE\u05D5\u05EA \u05D9\u05E9\u05E0\u05D4. \u05D4\u05E9\u05EA\u05DE\u05E9\u05D5 \u05D1\u05E7\u05D5\u05D3 \u05D4\u05DE\u05E9\u05E4\u05D7\u05EA\u05D9 \u05D5\u05D1\u05D3\u05E7\u05D5 \u05D0\u05EA \u05DE\u05E4\u05EA\u05D7 \u05D4\u05D2\u05D9\u05E9\u05D4.", 401);
+        passkeyCheck(!((info.counter > 0 || credential.counter > 0) && info.counter <= credential.counter), "\u05D4\u05EA\u05E7\u05D1\u05DC\u05D4 \u05EA\u05E9\u05D5\u05D1\u05EA \u05D0\u05D9\u05DE\u05D5\u05EA \u05D9\u05E9\u05E0\u05D4. \u05D4\u05E9\u05EA\u05DE\u05E9\u05D5 \u05D1\u05E7\u05D5\u05D3 \u05D4\u05DE\u05E9\u05E4\u05D7\u05EA\u05D9 \u05D5\u05D1\u05D3\u05E7\u05D5 \u05D0\u05EA \u05DE\u05E4\u05EA\u05D7 \u05D4\u05D2\u05D9\u05E9\u05D4.", 401);
         credential.counter = info.counter;
         credential.backedUp = info.backedUp;
         credential.lastUsedAt = now;
