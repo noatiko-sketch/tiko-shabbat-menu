@@ -17,7 +17,8 @@ export function projectAction<S extends MutationSnapshot>(source:S,action:Action
  }
  if(!s.current||s.current.saturday!==a.saturday)throw Error('יש לרענן את התפריט לפני השמירה.');
  if(a.type==='transfer'){
-  const dish=s.current[a.meal!].dishes[a.index!];if(!dish)throw Error('המנה כבר הוסרה.');
+  let dish=s.current[a.meal!].dishes[a.index!];if(!dish)throw Error('המנה כבר הוסרה.');
+  if(a.responsible!==undefined)dish=editMenu(s.current,{...a,type:'assign'})[a.meal!].dishes[a.index!]!;
   if(a.targetSaturday===a.saturday){
    if(a.targetMeal===a.meal)throw Error('המנה כבר בארוחה הזו.');
    if(!mealAllows(inferDiet(dish.name),a.targetMeal!,s.current.week))throw Error('המנה אינה מתאימה לארוחה בשרית או חלבית.');

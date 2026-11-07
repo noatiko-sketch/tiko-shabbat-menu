@@ -3,8 +3,9 @@
 Read README.md first. Keep changes small and preserve the current Hebrew RTL design and behavior unless requested otherwise.
 
 ## One application and one production database
-- Existing Site project: appgprj_6ab3c7d07f588191ac6504eb977576c8.
-- Public URL: https://tiko-shabbat-menu.noatiko.chatgpt.site.
+- Source of truth: https://github.com/noatiko-sketch/tiko-shabbat-menu, latest main. Work here on a feature branch and open a PR.
+- Public URL: https://noatiko-sketch.github.io/tiko-shabbat-menu/.
+- The old ChatGPT Site is legacy. Do not edit or publish it for Tiko requests.
 - Production storage is Google Drive via Apps Script (TIKO_STORAGE=drive), not D1. D1 is a legacy/local test backend. Never switch production to it or create a new Site/database as a shortcut.
 - Do not edit the live Drive JSON to test a feature. Tests and local preview use isolated data.
 - Never commit live state exports, credentials, environment files, tokens or authenticated browser data. Runtime secrets remain in Sites and Apps Script settings.

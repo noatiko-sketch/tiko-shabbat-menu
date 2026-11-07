@@ -1,16 +1,17 @@
 export const family = ['אמא','אבא','נעה','אביגיל','יפעת'] as const;
 export const defaultCategories:Record<string,string> = {salad:'סלט',baked:'ירקות אפויים',soup:'מרק',pasta:'פסטה / רביולי / ניוקי / לזניה',pastry:'פשטידה / מאפה / קיש',main:'מנה עיקרית',side:'תוספת',dip:'מטבלים ורטבים',extra:'מנות נוספות',dessert:'מנה אחרונה'};
 export function inferCategory(name:string) {
- if(/עוג|גליד|טפיוק|פבלוב|סלט פירות|^פירות$/.test(name))return 'dessert';
+ if(/עוג|גליד|טפיוק|פבלוב|סלט פירות|^פירות$|מוס |קרם ברולה|מלבי|קינוח|בראונ|עוגי|שוקולד/.test(name))return 'dessert';
  if (/סלט|קולסלואו/.test(name)) return 'salad';
  if (/מרק|גספאצ/.test(name)) return 'soup';
- if (/פסטה|רביולי|ניוקי|לזני/.test(name)) return 'pasta';
- if (/פשטיד|מאפה|קיש |בורקס|גחנון|צ.וקור|טוסט|פוקצ/.test(name)) return 'pastry';
+ if (/פסטה|רביולי|ניוקי|לזני|לזניה|ספגטי|מקרוני|פטוציני|נודלס/.test(name)) return 'pasta';
+ if (/פשטיד|מאפה|קיש(?: |$)|בורקס|גחנון|צ.וקור|טוסט|פוקצ|לחם|חלה|פיצה|סמבוסק|לחמני/.test(name)) return 'pastry';
  if (/טחינה|חומוס|ציזיקי|רוטב|ממרח/.test(name) && !/דג|סלמון|בשר|קציצ/.test(name)) return 'dip';
- if (/כרובית|כרוב|דלעת|אנטיפסטי|ירקות אפויים/.test(name)&&/אפוי|בתנור|צלוי|אנטיפסטי/.test(name)) return 'baked';
- if (/אורז|בורגול|קוסקוס|פירה|צ.יפס|תפו|תפוחי אדמה|שעועית ירוקה|ברוקולי|במיה/.test(name)&&!/עוף|בשר|דג/.test(name)) return 'side';
+ if (/כרובית|כרוב|דלעת|קישוא|חציל|גזר|בטטה|פלפל|אנטיפסטי|ירקות אפויים/.test(name)&&/אפוי|בתנור|צלוי|אנטיפסטי/.test(name)) return 'baked';
+ if (/אורז|בורגול|קוסקוס|פירה|צ.יפס|תפו|תפוחי אדמה|שעועית ירוקה|ברוקולי|במיה|פתיתים|קינואה|עדשים|אפונה|כוסמת/.test(name)&&!/עוף|בשר|דג/.test(name)) return 'side';
  if (/דג|סלמון|לברק|סול|חריימה|סביצ|לביב|קציצ|עוף|פרגית|פרגיות|שניצל|בשר|קבב|חמין|ממולא|פוקי|ספרינג|פאד תאי|קאר|נקניק/.test(name)) return 'main';
- return 'extra';
+ // Unknown dishes use the existing main-dish category; manual categories remain available.
+ return 'main';
 }
 export function inferDiet(name:string):'meat'|'dairy'|'pareve'|'mixed' {
  const text=name.replace(/ללא (?:בשר|עוף|חלב|גבינה|גבינות|שמנת)|בלי (?:בשר|עוף|חלב|גבינה|גבינות|שמנת)|חלב (?:קוקוס|שקדים|סויה|שיבולת שועל)|שמנת צמחית/g,'');

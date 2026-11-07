@@ -73,10 +73,10 @@ test('new dishes infer a category and preserve attribution without mutating sour
  assert.equal(replaced.friday.slot_categories[0],'custom-category');
  assert.equal(replaced.friday.dishes[0].updated_by,'אבא');
 });
-test('unknown foods remain available in the fallback category',()=>{
+test('unknown foods are classified as main dishes',()=>{
  const source=emptyMenu('2026-10-24','2026-09-26',1);
  const edited=editMenu(source,{...add(source.saturday,'lunch','מנה משפחתית'),dish:{name:'מנה משפחתית',category:'auto'}});
- assert.equal(edited.lunch.dishes[0].category,'extra');
+ assert.equal(edited.lunch.dishes[0].category,'main');
 });
 test('new dishes insert before dessert by default, while explicit manual order remains free',()=>{
  const source=emptyMenu('2026-10-24','2026-09-26',1);source.friday.dishes=[{name:'סלט',category:'salad'},{name:'פירות',category:'dessert'}];source.friday.slot_categories=['salad','dessert'];

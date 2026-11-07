@@ -2,9 +2,10 @@
 import {apiFetch} from '@/lib/google-transport';
 import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
-import {shoppingCategories,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
+import {shoppingCategories,shoppingName,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
 import {confirmShoppingAddition} from '@/lib/shopping-addition';
 import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
+import {ShoppingDefaults} from '@/components/shopping-defaults';
 import {ShoppingMutations} from '@/lib/shopping-mutations';
 
 export function ShoppingList({person,onSavingChange}:{person:string;onSavingChange:(saving:boolean)=>void}){
@@ -53,7 +54,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
  };
  const submit=async(event:FormEvent)=>{
   event.preventDefault();if(adding)return;setAdding(true);const submitted=name,submittedQuantity=quantity;
-  const ok=await act({type:'shopping_add',name,category,quantity});
+  const ok=await act({type:'shopping_add',name,category,quantity,rememberCategory:true});
   if(mounted.current){if(ok){setName(value=>value===submitted?'':value);setQuantity(value=>value===submittedQuantity?'':value);}setAdding(false);}
  };
  const data=snapshot?.shopping,products=data?.products||[],items=data?.items||[];
@@ -87,7 +88,8 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
      </details>}
     </div>{showAdd&&<aside id="shopping-add-panel" className="shopping-add-panel" aria-label="הוספת מוצרים">
      <h2 className="sr-only">הוספת מוצרים</h2>
-     <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>setName(e.target.value)} maxLength={100} required placeholder="שם המוצר"/></label>
+     <ShoppingDefaults products={products} items={items} onAdd={items=>act({type:'shopping_import',items})}/>
+     <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{const value=e.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}} maxLength={100} required placeholder="שם המוצר"/></label>
       <div className="shopping-form-pair"><label>קטגוריה<select value={category} onChange={e=>setCategory(e.target.value as ShoppingCategory)}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
       <button className="shopping-primary" type="submit" disabled={adding||!name.trim()}>{adding?<LoaderCircle className="spin" size={18}/>:<Plus size={18}/>} הוספה</button>
      </form>

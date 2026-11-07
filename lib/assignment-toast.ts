@@ -2,7 +2,7 @@ import type {Action,Menu} from './menu-model.ts';
 
 export type AssignmentToast={text:string;image:string};
 // Capture the transition before optimistic rendering; unchanged/cleared assignments
-// never celebrate. Count only dishes in the server-confirmed menu, across both meals.
+// never celebrate. Count the projected menu so feedback does not wait for Google.
 export function isNewAssignment(menu:Menu|null,action:Action):boolean{
  if(!menu||menu.saturday!==action.saturday||!action.meal||!['add','replace','assign'].includes(action.type)||!action.responsible)return false;
  return action.type==='add'||menu[action.meal].dishes[action.index??-1]?.prepared_by!==action.responsible;

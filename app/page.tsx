@@ -13,7 +13,7 @@ import {dishCandidates} from '@/lib/dish-candidates';
 import {RecipeLink} from '@/components/recipe';
 import {DishEditor} from '@/components/dish-editor';
 import {ShoppingList} from '@/components/shopping-list';
-import {family,genderText} from '@/lib/family';
+import {family,avatarPaths,genderText} from '@/lib/family';
 import type {CatalogDish} from '@/lib/menu-store';
 import {addDays,upcomingSaturday,type Dish,type Menu,type Action} from '@/lib/menu-model';
 type Snapshot={catalog?:CatalogDish[];categories?:Record<string,string>;family_status?:FamilyStatus[];current:Menu|null;candidates:Record<string,Dish[]>;status:'ready'|'error';detail?:string;revision?:number;catalog_revision?:number;upcoming_saturday?:string;has_menu?:boolean};
@@ -22,7 +22,7 @@ function LoadingMenu(){return <div className="menu-skeleton" role="status" aria-
 export default function Home(){
  const [person,setPerson]=useState(''),[tab,setTab]=useState<'menu'|'catalog'|'shopping'>('menu'),[data,setData]=useState<Snapshot|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[saving,setSaving]=useState(false),[message,setMessage]=useState('');
  const [selectedSaturday,setSelectedSaturday]=useState(()=>upcomingSaturday()),[editing,setEditing]=useState<{meal:'friday'|'lunch';index:number;adding?:boolean}|null>(null),[formError,setFormError]=useState(''),[remove,setRemove]=useState<{meal:'friday'|'lunch';index:number}|null>(null);
- useEffect(()=>{for(const src of ['/toasts/parents-minimal.webp','/toasts/bowl-minimal.webp']){const image=new Image();image.src=appPath(src);}},[]);
+ useEffect(()=>{for(const src of ['/toasts/parents-minimal.webp','/toasts/bowl-minimal.webp',...Object.values(avatarPaths).map(name=>`/avatars/${name}-minimal.png`)]){const image=new Image();image.src=appPath(src);}},[]);
  const [shoppingSaving,setShoppingSaving]=useState(false);
  const [celebration,setCelebration]=useState<(AssignmentToast&{id:string})|null>(null);
  useEffect(()=>{if(!celebration)return;const timer=setTimeout(()=>setCelebration(null),1000);return()=>clearTimeout(timer);},[celebration]);
@@ -58,18 +58,19 @@ export default function Home(){
   setMessage('');setFormError('');
   try{
    if(!dataRef.current)return false;
-   projectAction(dataRef.current,requestAction);
+   const projected=projectAction(dataRef.current,requestAction);
    const celebrate=isNewAssignment(dataRef.current.current,requestAction);
-   let savedCelebration:AssignmentToast|null=null;
+   const feedback=celebrate?assignmentToast(projected.current,requestAction):null;
    mutationVersion.current++;refreshFlight.current?.controller.abort();
    const completion=mutations.current!.enqueue(requestAction,async(revision,catalogRevision)=>{
     const r=await apiFetch('/api/menu',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','x-family-member':encodeURIComponent(person)},body:JSON.stringify({...requestAction,revision,catalogRevision})});
     const result=await r.json() as {detail?:string;snapshot?:Snapshot};
     if(!r.ok||!result.snapshot)throw Error(t(result.detail||'השמירה נכשלה.'));
-    if(celebrate)savedCelebration=assignmentToast(result.snapshot.current,requestAction);
     return result.snapshot;
    });
-   void completion.then(ok=>{if(ok&&savedCelebration)setCelebration({...savedCelebration,id:requestAction.mutationId});else if(!pending.current)setMessage('השינוי נשמר.');}).catch(error=>{
+   if(feedback)setCelebration({...feedback,id:requestAction.mutationId});
+   else setMessage('שומרים…');
+   void completion.catch(error=>{
     const detail=error instanceof TypeError?'לא התקבל אישור שמירה. יש לנסות שוב.':(error as Error).message;
     setCelebration(null);setMessage(detail);setFormError(detail);void refresh(undefined,true);
    });
@@ -79,7 +80,7 @@ export default function Home(){
 
  const current=data?.current,connected=data?.status==='ready',isUpcoming=selectedSaturday===(data?.upcoming_saturday||upcomingSaturday()),categoryLabels=data?.categories||{};
  const openEditor=(meal:'friday'|'lunch',index:number,adding=false)=>{setEditing({meal,index,adding});setFormError('');setRemove(null);};
- const editor=(kind:'friday'|'lunch',index:number,adding=false)=> <DishEditor adding={adding} categories={categoryLabels} key={`${kind}:${index}:${adding}`} current={current?.[kind].dishes[index]} candidates={dishCandidates(data?.catalog||[],kind,current?.week||1,adding?undefined:(current?.[kind].dishes[index]?.category||current?.[kind].slot_categories?.[index]||'extra'))} onRemove={!adding&&current?.[kind].dishes[index]?()=>{setRemove({meal:kind,index});setEditing(null);}:undefined} transfer={!adding&&current?(dirty:boolean)=><DishTransfer disabled={dirty} saturday={current.saturday} meal={kind} onTransfer={async(targetSaturday,targetMeal)=>{const ok=await act({type:'transfer',saturday:current.saturday,meal:kind,index,targetSaturday,targetMeal});if(ok)setEditing(null);return ok;}}/>:undefined} busy={busy} error={formError} onCancel={()=>setEditing(null)} onSave={async(dish,responsible)=>{if(!current)return;const unchanged=!adding&&current[kind].dishes[index]?.name===dish.name&&current[kind].dishes[index]?.category===dish.category&&(current[kind].dishes[index]?.recipe_url||'')===(dish.recipe_url||'');if(await act({type:unchanged?'assign':adding?'add':'replace',saturday:current.saturday,meal:kind,index,dish,responsible}))setEditing(null);}}/>;
+ const editor=(kind:'friday'|'lunch',index:number,adding=false)=> <DishEditor adding={adding} categories={categoryLabels} key={`${kind}:${index}:${adding}`} current={current?.[kind].dishes[index]} candidates={dishCandidates(data?.catalog||[],kind,current?.week||1,adding?undefined:(current?.[kind].dishes[index]?.category||current?.[kind].slot_categories?.[index]||'extra'))} onRemove={!adding&&current?.[kind].dishes[index]?()=>{setRemove({meal:kind,index});setEditing(null);}:undefined} transfer={!adding&&current?(dirty:boolean,responsible:string)=><DishTransfer disabled={dirty} saturday={current.saturday} meal={kind} onTransfer={async(targetSaturday,targetMeal)=>{const ok=await act({type:'transfer',saturday:current.saturday,meal:kind,index,targetSaturday,targetMeal,responsible});if(ok)setEditing(null);return ok;}}/>:undefined} busy={busy} error={formError} onCancel={()=>setEditing(null)} onSave={async(dish,responsible)=>{if(!current)return;const unchanged=!adding&&current[kind].dishes[index]?.name===dish.name&&current[kind].dishes[index]?.category===dish.category&&(current[kind].dishes[index]?.recipe_url||'')===(dish.recipe_url||'');if(await act({type:unchanged?'assign':adding?'add':'replace',saturday:current.saturday,meal:kind,index,dish,responsible}))setEditing(null);}}/>;
  const navigate=(amount:number)=>{if(pending.current)return;setEditing(null);setRemove(null);setData(null);setLoading(true);setSelectedSaturday(s=>addDays(s,amount*7));};
  const meal=(menu:Menu,kind:'friday'|'lunch')=><section className="meal" aria-label={kind==='friday'?'שישי בערב':'שבת בצהריים'}><div className="meal-heading"><h2>{kind==='friday'?'שישי בערב':'שבת בצהריים'}</h2></div><ReorderList busy={busy||!!editing||!!remove} onDraggingChange={value=>{dragging.current=value;if(value)mutationVersion.current++;}} count={menu[kind].dishes.length} onMove={(index,toIndex)=>act({type:'move',saturday:menu.saturday,meal:kind,index,toIndex})}>{menu[kind].dishes.map((dish,index)=>{const isEditing=editing?.meal===kind&&editing.index===index&&!editing.adding;return <ReorderRow index={index} className={`dish-row ${isEditing?'editing':''}`} key={`${kind}:${index}`}><div className="menu-row"><div className="dish-leading"><CategoryBadge category={dish?.category||menu[kind].slot_categories?.[index]||'extra'} label={categoryLabels[dish?.category||menu[kind].slot_categories?.[index]||'extra']}/><div className="dish-copy"><div className="dish-title-line"><span className={dish?'dish-name':'dish-empty'}>{dish?.name||'בחירת מנה'}</span>{dish&&<RecipeLink url={dish.recipe_url} name={dish.name}/>} {dish?.prepared_by&&<small className="preparation-credit" title={`האחראי להכנה: ${dish.prepared_by}`}><ChefHat size={13}/>{dish.prepared_by}</small>}</div>{dish?.updated_by&&dish.updated_by!=='אוטומטית'&&<small className="changed-by"><Pencil size={11}/>{dish.updated_by}</small>}</div></div><div className="row-actions"><DragHandle index={index} name={dish?.name||'מנה'}/><button className="icon-action" disabled={busy} title="עריכה" aria-label={`עריכת ${dish?.name||'מנה'}`} onClick={()=>openEditor(kind,index)}><Pencil size={18}/></button></div></div>{isEditing&&editor(kind,index)}{remove?.meal===kind&&remove.index===index&&<div className="inline-confirm" role="alert"><p>{t(`מה תרצי לעשות עם ״${dish?.name}״?`)}</p><div className="form-actions"><Button className="form-button" disabled={busy} onClick={async()=>{if(await act({type:'remove',saturday:menu.saturday,meal:kind,index}))setRemove(null);}}>הסרה מהתפריט</Button><Button className="form-button" disabled={busy} onClick={async()=>{if(await act({type:'remove',saturday:menu.saturday,meal:kind,index,removeFromCatalog:true}))setRemove(null);}}>הסרה גם מהמאגר</Button><Button className="form-button" disabled={busy} onClick={()=>setRemove(null)}>ביטול</Button></div></div>}</ReorderRow>;})}</ReorderList><button className="meal-add" disabled={busy} onClick={()=>openEditor(kind,menu[kind].dishes.length,true)}><Plus size={17}/> הוספת מנה</button>{editing?.meal===kind&&editing.adding&&editor(kind,menu[kind].dishes.length,true)}</section>;
  const liked=!!data?.family_status?.some(s=>s.name===person&&s.approved_revision===data.revision);
