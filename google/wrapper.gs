@@ -40,6 +40,8 @@ function doGet(e){
 }
 // Public HTML-service entrypoint. The server bridge token is never sent to Pages.
 function pagesRequest(request,code,session){
+ // Password login and device persistence share one authenticated request.
+ if(request&&request.resource==='connect'&&request.remember===true&&passkeysAvailable_())return passkeysRequest_({operation:'remember',remember:true,label:request.label},code,session);
  if(request&&request.resource==='passkeys')return passkeysRequest_(request,code,session);
  try{authorize_(code,session);}catch(error){return {status:401,body:{detail:'קוד הכניסה אינו נכון או שהחשבון אינו מורשה.'}};}
  try{
