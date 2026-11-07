@@ -18,4 +18,15 @@
 .shopping-add-panel .shopping-photo-layout{grid-template-columns:minmax(0,1fr)}
 @media(max-width:760px){.shopping-layout.is-adding{grid-template-columns:minmax(0,1fr);gap:20px}.shopping-layout.is-adding .shopping-add-panel{grid-row:1}.shopping-compact-header h1{font-size:24px}.shopping-compact-header{gap:10px;padding:20px 0}.shopping-add-trigger{padding:10px 14px}}
 
+.shopping-defaults {margin-bottom:18px}
+.shopping-defaults-trigger {display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 14px;border:1px solid #d8dfd0;border-radius:12px;background:#f4f7ef;font:inherit;color:inherit;cursor:pointer}
+.shopping-default-choices {margin-top:12px;max-height:65vh;overflow:auto;padding:2px 2px 8px}
+.shopping-default-choices fieldset {border:0;padding:0;margin:0 0 16px;min-width:0}
+.shopping-default-choices legend {font-weight:700;padding:6px 0}
+.shopping-default-choice {display:flex;gap:10px;align-items:center;min-height:44px;padding:8px;border-radius:9px;cursor:pointer}
+.shopping-default-choice.is-selected {background:#edf3e7}
+.shopping-default-choice input {width:20px;height:20px;accent-color:#61724c;flex-shrink:0}
+.shopping-default-choice span {flex:1}
+.shopping-default-choice small {display:flex;gap:4px;align-items:center;color:#627057}
+.shopping-default-choices > .shopping-primary {position:sticky;bottom:0;width:100%;box-shadow:0 -4px 12px #fff}
 .shopping-item-copy .shopping-added-by{font-size:12px;line-height:1.5;color:#526a49;font-weight:400;overflow-wrap:anywhere}

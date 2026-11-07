@@ -21,6 +21,26 @@ export function initializeDrive(state:State,foods:string,ctx:Context){
  const known=new Set(state.dish_catalog.map((d:Dish)=>norm(d.name))),excluded=new Set(state.excluded_dishes.map(norm));
  for(const dish of [...state.custom_dishes,...state.manual_dishes]){if(dish?.name&&!known.has(norm(dish.name))&&!excluded.has(norm(dish.name))){const category=state.food_categories[dish.category]?dish.category:inferCategory(dish.name);state.dish_catalog.push({...dish,category:state.food_categories[category]?category:'extra',diet:inferDiet(dish.name)});known.add(norm(dish.name));}}
  if(!state.dessert_seeded){state.food_categories.dessert||='מנה אחרונה';for(const name of ['עוגה','גלידה','טפיוקה','סלט פירות','פירות','פבלובה','עוגת יומולדת'])if(!state.dish_catalog.some((d:Dish)=>norm(d.name)===norm(name))&&!state.excluded_dishes.some((n:string)=>norm(n)===norm(name)))state.dish_catalog.push({name,category:'dessert',diet:inferDiet(name),updated_by:'',updated_at:''});state.dessert_seeded=true;}
+ // Normalize unclassified dishes on every weekly load, without rewriting archives,
+ // closed history, assignments, recipes or the family's manual order.
+ let classified=false;
+ const categoryFor=(name:string)=>{const id=inferCategory(name);return state.food_categories[id]?id:state.food_categories.main?'main':Object.keys(state.food_categories).find(id=>id!=='extra')||'extra';};
+ for(const list of [state.dish_catalog,state.manual_dishes,state.custom_dishes])for(const dish of list){
+  if(dish&&(dish.category==='extra'||dish.category==='auto'||!dish.category)){
+   const category=categoryFor(dish.name);if(category!==dish.category){dish.category=category;classified=true;}
+  }
+ }
+ if(classified)state.catalog_revision=Number(state.catalog_revision||0)+1;
+ for(const [day,original] of Object.entries(state.menu_drafts) as [string,Menu][]){
+  if(day<ctx.upcoming||state.shabbat_archive?.[day])continue;
+  const menu=copy(original);let changed=false;
+  for(const kind of ['friday','lunch'] as const)menu[kind].dishes.forEach((dish,index)=>{
+   if(!dish||dish.category!=='extra'&&dish.category!=='auto'&&dish.category) return;
+   const category=categoryFor(dish.name);if(category===dish.category)return;
+   dish.category=category;if(menu[kind].slot_categories)menu[kind].slot_categories![index]=category;changed=true;
+  });
+  if(changed){menu.approved=false;delete menu.approved_at;state.menu_drafts[day]=menu;state.menu_revisions[day]=Number(state.menu_revisions[day]||0)+1;}
+ }
  return state;
 }
 const saved=(s:State,day:string):Menu|undefined=>s.menu_drafts[day]||s.history.find((m:Menu)=>m.saturday===day);
@@ -90,7 +110,8 @@ export function driveAction(original:State,action:Action,actor:string,ctx:Contex
   check(a.targetSaturday===day||a.targetSaturday===addDays(day,7),'אפשר להעביר רק לשבת הזו או לשבת הבאה.');
   check(a.targetSaturday!==day||a.targetMeal!==a.meal,'המנה כבר בארוחה הזו.');
   check(Number.isInteger(a.index)&&a.index!==undefined&&a.index>=0,'מיקום מנה לא תקין.');
-  const dish=current[a.meal!].dishes[a.index!];check(dish,'המנה כבר הוסרה.');
+  let dish=current[a.meal!].dishes[a.index!];check(dish,'המנה כבר הוסרה.');
+  if(a.responsible!==undefined)dish=editMenu(current,{...a,type:'assign'})[a.meal!].dishes[a.index!];
   let target=a.targetSaturday===day?current:copy(saved(s,a.targetSaturday!)||generateDriveMenu(s,a.targetSaturday!,ctx));
   check(mealAllows(inferDiet(dish!.name),a.targetMeal!,target.week),'המנה אינה מתאימה לארוחה בשרית או חלבית.');
   check(!target[a.targetMeal!].dishes.some(d=>d&&norm(d.name)===norm(dish!.name)),'המנה כבר מופיעה בארוחת היעד.');

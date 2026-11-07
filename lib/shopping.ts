@@ -9,11 +9,11 @@ export type ShoppingProduct = {id:string;name:string;category:ShoppingCategory};
 export type ShoppingItem = {productId:string;quantity:string;bought:boolean;added_by?:string;updated_by:string;updated_at:string};
 export type ShoppingState = {revision:number;products:ShoppingProduct[];items:ShoppingItem[];receipts:{id:string;actor:string}[]};
 export type ShoppingImportItem = {name:string;category:ShoppingCategory;quantity:string};
-export type ShoppingAction = {type:'shopping_add'|'shopping_toggle'|'shopping_remove'|'shopping_clear_bought'|'shopping_recategorize'|'shopping_import';mutationId:string;revision?:number;productId?:string;name?:string;category?:string;quantity?:string;bought?:boolean;items?:ShoppingImportItem[]};
+export type ShoppingAction = {type:'shopping_add'|'shopping_toggle'|'shopping_remove'|'shopping_clear_bought'|'shopping_recategorize'|'shopping_import';mutationId:string;revision?:number;productId?:string;rememberCategory?:boolean;name?:string;category?:string;quantity?:string;bought?:boolean;items?:ShoppingImportItem[]};
 export type ShoppingSnapshot = {status:'ready';storage:'google-drive';state_id:string;shopping:ShoppingState};
 export class ShoppingError extends Error {status:number;constructor(message:string,status=400){super(message);this.status=status;}}
 const shoppingCheck=(ok:unknown,message:string,status=400)=>{if(!ok)throw new ShoppingError(message,status);};
-const shoppingName=(name:string)=>name.normalize('NFKC').replace(/\s+/g,' ').trim().toLocaleLowerCase('he');
+export const shoppingName=(name:string)=>name.normalize('NFKC').replace(/\s+/g,' ').trim().toLocaleLowerCase('he');
 export function readShopping(state:Record<string,any>):ShoppingState {
  return state.shopping ? structuredClone(state.shopping) : {revision:0,products:[],items:[],receipts:[]};
 }
@@ -46,7 +46,7 @@ export function editShopping(source:ShoppingState,action:ShoppingAction,actor:st
    if(!product){
     shoppingCheck(s.products.length<2000,'המאגר מכיל כבר 2,000 מוצרים.');
     product={id:'p-'+action.mutationId,name,category:action.category as ShoppingCategory};s.products.push(product);
-   }
+   }else if(action.rememberCategory===true)product.category=action.category as ShoppingCategory;
   }
   shoppingCheck(product,'המוצר אינו במאגר. יש לרענן את הרשימה.');
   shoppingCheck(action.quantity===undefined||typeof action.quantity==='string'&&action.quantity.length<=60,'כמות ארוכה מדי — עד 60 תווים.');

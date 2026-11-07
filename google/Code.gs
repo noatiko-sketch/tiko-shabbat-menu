@@ -3221,25 +3221,26 @@ function recipeUrl(value) {
 const family = ['אמא', 'אבא', 'נעה', 'אביגיל', 'יפעת'];
 const defaultCategories = { salad: 'סלט', baked: 'ירקות אפויים', soup: 'מרק', pasta: 'פסטה / רביולי / ניוקי / לזניה', pastry: 'פשטידה / מאפה / קיש', main: 'מנה עיקרית', side: 'תוספת', dip: 'מטבלים ורטבים', extra: 'מנות נוספות', dessert: 'מנה אחרונה' };
 function inferCategory(name) {
-    if (/עוג|גליד|טפיוק|פבלוב|סלט פירות|^פירות$/.test(name))
+    if (/עוג|גליד|טפיוק|פבלוב|סלט פירות|^פירות$|מוס |קרם ברולה|מלבי|קינוח|בראונ|עוגי|שוקולד/.test(name))
         return 'dessert';
     if (/סלט|קולסלואו/.test(name))
         return 'salad';
     if (/מרק|גספאצ/.test(name))
         return 'soup';
-    if (/פסטה|רביולי|ניוקי|לזני/.test(name))
+    if (/פסטה|רביולי|ניוקי|לזני|לזניה|ספגטי|מקרוני|פטוציני|נודלס/.test(name))
         return 'pasta';
-    if (/פשטיד|מאפה|קיש |בורקס|גחנון|צ.וקור|טוסט|פוקצ/.test(name))
+    if (/פשטיד|מאפה|קיש(?: |$)|בורקס|גחנון|צ.וקור|טוסט|פוקצ|לחם|חלה|פיצה|סמבוסק|לחמני/.test(name))
         return 'pastry';
     if (/טחינה|חומוס|ציזיקי|רוטב|ממרח/.test(name) && !/דג|סלמון|בשר|קציצ/.test(name))
         return 'dip';
-    if (/כרובית|כרוב|דלעת|אנטיפסטי|ירקות אפויים/.test(name) && /אפוי|בתנור|צלוי|אנטיפסטי/.test(name))
+    if (/כרובית|כרוב|דלעת|קישוא|חציל|גזר|בטטה|פלפל|אנטיפסטי|ירקות אפויים/.test(name) && /אפוי|בתנור|צלוי|אנטיפסטי/.test(name))
         return 'baked';
-    if (/אורז|בורגול|קוסקוס|פירה|צ.יפס|תפו|תפוחי אדמה|שעועית ירוקה|ברוקולי|במיה/.test(name) && !/עוף|בשר|דג/.test(name))
+    if (/אורז|בורגול|קוסקוס|פירה|צ.יפס|תפו|תפוחי אדמה|שעועית ירוקה|ברוקולי|במיה|פתיתים|קינואה|עדשים|אפונה|כוסמת/.test(name) && !/עוף|בשר|דג/.test(name))
         return 'side';
     if (/דג|סלמון|לברק|סול|חריימה|סביצ|לביב|קציצ|עוף|פרגית|פרגיות|שניצל|בשר|קבב|חמין|ממולא|פוקי|ספרינג|פאד תאי|קאר|נקניק/.test(name))
         return 'main';
-    return 'extra';
+    // Unknown dishes use the existing main-dish category; manual categories remain available.
+    return 'main';
 }
 function inferDiet(name) {
     const text = name.replace(/ללא (?:בשר|עוף|חלב|גבינה|גבינות|שמנת)|בלי (?:בשר|עוף|חלב|גבינה|גבינות|שמנת)|חלב (?:קוקוס|שקדים|סויה|שיבולת שועל)|שמנת צמחית/g, '');
@@ -3419,6 +3420,46 @@ function initializeDrive(state, foods, ctx) {
                 state.dish_catalog.push({ name, category: 'dessert', diet: inferDiet(name), updated_by: '', updated_at: '' });
         state.dessert_seeded = true;
     }
+    // Normalize unclassified dishes on every weekly load, without rewriting archives,
+    // closed history, assignments, recipes or the family's manual order.
+    let classified = false;
+    const categoryFor = (name) => { const id = inferCategory(name); return state.food_categories[id] ? id : state.food_categories.main ? 'main' : Object.keys(state.food_categories).find(id => id !== 'extra') || 'extra'; };
+    for (const list of [state.dish_catalog, state.manual_dishes, state.custom_dishes])
+        for (const dish of list) {
+            if (dish && (dish.category === 'extra' || dish.category === 'auto' || !dish.category)) {
+                const category = categoryFor(dish.name);
+                if (category !== dish.category) {
+                    dish.category = category;
+                    classified = true;
+                }
+            }
+        }
+    if (classified)
+        state.catalog_revision = Number(state.catalog_revision || 0) + 1;
+    for (const [day, original] of Object.entries(state.menu_drafts)) {
+        if (day < ctx.upcoming || state.shabbat_archive?.[day])
+            continue;
+        const menu = copy(original);
+        let changed = false;
+        for (const kind of ['friday', 'lunch'])
+            menu[kind].dishes.forEach((dish, index) => {
+                if (!dish || dish.category !== 'extra' && dish.category !== 'auto' && dish.category)
+                    return;
+                const category = categoryFor(dish.name);
+                if (category === dish.category)
+                    return;
+                dish.category = category;
+                if (menu[kind].slot_categories)
+                    menu[kind].slot_categories[index] = category;
+                changed = true;
+            });
+        if (changed) {
+            menu.approved = false;
+            delete menu.approved_at;
+            state.menu_drafts[day] = menu;
+            state.menu_revisions[day] = Number(state.menu_revisions[day] || 0) + 1;
+        }
+    }
     return state;
 }
 const saved = (s, day) => s.menu_drafts[day] || s.history.find((m) => m.saturday === day);
@@ -3567,8 +3608,10 @@ function driveAction(original, action, actor, ctx) {
         check(a.targetSaturday === day || a.targetSaturday === addDays(day, 7), 'אפשר להעביר רק לשבת הזו או לשבת הבאה.');
         check(a.targetSaturday !== day || a.targetMeal !== a.meal, 'המנה כבר בארוחה הזו.');
         check(Number.isInteger(a.index) && a.index !== undefined && a.index >= 0, 'מיקום מנה לא תקין.');
-        const dish = current[a.meal].dishes[a.index];
+        let dish = current[a.meal].dishes[a.index];
         check(dish, 'המנה כבר הוסרה.');
+        if (a.responsible !== undefined)
+            dish = editMenu(current, { ...a, type: 'assign' })[a.meal].dishes[a.index];
         let target = a.targetSaturday === day ? current : copy(saved(s, a.targetSaturday) || generateDriveMenu(s, a.targetSaturday, ctx));
         check(mealAllows(inferDiet(dish.name), a.targetMeal, target.week), 'המנה אינה מתאימה לארוחה בשרית או חלבית.');
         check(!target[a.targetMeal].dishes.some(d => d && norm(d.name) === norm(dish.name)), 'המנה כבר מופיעה בארוחת היעד.');
@@ -3727,6 +3770,8 @@ function editShopping(source, action, actor, now) {
                 product = { id: 'p-' + action.mutationId, name, category: action.category };
                 s.products.push(product);
             }
+            else if (action.rememberCategory === true)
+                product.category = action.category;
         }
         shoppingCheck(product, 'המוצר אינו במאגר. יש לרענן את הרשימה.');
         shoppingCheck(action.quantity === undefined || typeof action.quantity === 'string' && action.quantity.length <= 60, 'כמות ארוכה מדי — עד 60 תווים.');
