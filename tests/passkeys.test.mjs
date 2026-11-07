@@ -72,3 +72,8 @@ test('family menu and shopping snapshots never expose private passkey records',(
   assert.equal(snapshot.passkeys_v1,undefined);assert.equal(JSON.stringify(snapshot).includes(state.passkeys_v1.credentials[0].publicKey),false);
  }
 });
+test('generated verifier uses BigInt constructors accepted by the Apps Script upload parser',async()=>{
+ const ts=await import('typescript');
+ const source=ts.createSourceFile('Code.js',readFileSync(new URL('../google/Code.gs',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+ const visit=node=>{assert.equal(ts.isBigIntLiteral(node),false);ts.forEachChild(node,visit);};visit(source);
+});
