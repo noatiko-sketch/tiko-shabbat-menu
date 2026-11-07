@@ -8,8 +8,8 @@
   const data=event.data;
   if(event.source!==window.top||event.origin!==config.parentOrigin||!data||data.channel!==channel||data.nonce!==config.nonce||data.kind!=='request'||typeof data.id!=='string')return;
   const reply=result=>send({kind:'reply',id:data.id,status:result.status,body:result.body});
-  google.script.run.withSuccessHandler(reply).withFailureHandler(()=>reply({status:503,body:{detail:'החיבור למאגר אינו זמין כרגע.'}})).pagesRequest(data.payload,data.code);
+  google.script.run.withSuccessHandler(reply).withFailureHandler(()=>reply({status:503,body:{detail:'החיבור למאגר אינו זמין כרגע.'}})).pagesRequest(data.payload,data.code,data.session||'');
  });
- send({kind:'ready',requiresCode:config.requiresCode});
+ send({kind:'ready',requiresCode:config.requiresCode,passkeys:config.passkeys});
 })();
 </script></body></html>

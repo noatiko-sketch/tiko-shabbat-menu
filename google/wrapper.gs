@@ -24,8 +24,8 @@ function readSnapshot_(body){
  // Re-read inside the lock: never persist the earlier unlocked snapshot.
  return locked_(function(){record=loadRecord_(ctx);result=prepare(record);if(result.changed)save_(record.state,record.file);return result.snapshot;});
 }
-function authorize_(code){var expected=PropertiesService.getScriptProperties().getProperty('TIKO_FAMILY_CODE');if(expected){if(String(code||'')!==expected)throw Error('קוד הכניסה אינו נכון.');return;}var active=Session.getActiveUser().getEmail(),owner=Session.getEffectiveUser().getEmail();if(!active||active!==owner)throw Error('הכניסה לגרסה הישנה זמינה לבעלת הפרויקט בלבד.');}
-function getClientConfig(){return {requiresCode:!!PropertiesService.getScriptProperties().getProperty('TIKO_FAMILY_CODE')};}
+function authorize_(code,session){if(session){authorizePasskeySession_(session);return;}var expected=PropertiesService.getScriptProperties().getProperty('TIKO_FAMILY_CODE');if(expected){if(String(code||'')!==expected)throw Error('קוד הכניסה אינו נכון.');return;}var active=Session.getActiveUser().getEmail(),owner=Session.getEffectiveUser().getEmail();if(!active||active!==owner)throw Error('הכניסה לגרסה הישנה זמינה לבעלת הפרויקט בלבד.');}
+function getClientConfig(){return {requiresCode:!!PropertiesService.getScriptProperties().getProperty('TIKO_FAMILY_CODE'),passkeys:passkeysAvailable_()};}
 function archiveCompletedWeekly_(){return locked_(function(){var record=loadRecord_(context_());if(JSON.stringify(record.state)!==record.before)save_(record.state,record.file);return {ready:true};});}
 function doGet(e){
  if(e&&e.parameter&&e.parameter.pagesBridge==='1'){
@@ -33,14 +33,15 @@ function doGet(e){
   var allowed=PropertiesService.getScriptProperties().getProperty('TIKO_PAGES_ORIGIN')||'https://noatiko-sketch.github.io';
   if(parent!==allowed||!/^https:\/\/[a-z0-9.-]+$/.test(parent)||!/^[a-f0-9-]{36}$/.test(nonce||''))return HtmlService.createHtmlOutput('Invalid bridge origin.');
   var bridge=HtmlService.createTemplateFromFile('Bridge');
-  bridge.bridgeConfig=JSON.stringify({parentOrigin:parent,nonce:nonce,requiresCode:getClientConfig().requiresCode}).replace(/</g,'\\u003c');
+  bridge.bridgeConfig=JSON.stringify({parentOrigin:parent,nonce:nonce,requiresCode:getClientConfig().requiresCode,passkeys:passkeysAvailable_()}).replace(/</g,'\\u003c');
   return bridge.evaluate().setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
  }
  var template=HtmlService.createTemplateFromFile('Index');var blob=DriveApp.getFileById(TIKO.illustration).getBlob();template.illustrationSrc='data:image/png;base64,'+Utilities.base64Encode(blob.getBytes());return template.evaluate().setTitle('אוכל לשבת — משפחת טיקו').addMetaTag('viewport','width=device-width, initial-scale=1');
 }
 // Public HTML-service entrypoint. The server bridge token is never sent to Pages.
-function pagesRequest(request,code){
- try{authorize_(code);}catch(error){return {status:401,body:{detail:'קוד הכניסה אינו נכון או שהחשבון אינו מורשה.'}};}
+function pagesRequest(request,code,session){
+ if(request&&request.resource==='passkeys')return passkeysRequest_(request,code,session);
+ try{authorize_(code,session);}catch(error){return {status:401,body:{detail:'קוד הכניסה אינו נכון או שהחשבון אינו מורשה.'}};}
  try{
   if(!request||typeof request!=='object')throw {status:400,message:'בקשה לא תקינה.'};
   if(request.resource==='connect')return {status:200,body:{connected:true}};
@@ -61,11 +62,11 @@ function pagesRequest(request,code){
   if(request.resource!=='menu')throw {status:400,message:'פעולה לא מוכרת.'};
   if(request.method==='GET')return {status:200,body:readSnapshot_({actor:request.actor,saturday:request.saturday,viewed:!!request.viewed,compact:true})};
   if(typeof action.type!=='string'||action.type.startsWith('shopping_'))throw {status:400,message:'פעולה לא מוכרת.'};
-  return {status:200,body:runAction(action,code)};
+  return {status:200,body:runAction(action,code,session)};
  }catch(error){return {status:error.status||503,body:{detail:String(error.message||error)}};}
 }
 function getMenu(day,code){authorize_(code);return readSnapshot_({saturday:day});}
-function runAction(action,code){authorize_(code);return locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,action,action.actor||'משפחה',ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;});}
+function runAction(action,code,session){authorize_(code,session);return locked_(function(){var ctx=context_(),record=loadRecord_(ctx),result=TikoDrive.driveAction(record.state,action,action.actor||'משפחה',ctx);if(result.changed!==false||JSON.stringify(record.state)!==record.before)save_(result.state,record.file);return result.response;});}
 function reply_(body){return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);}
 // Shopping shares the existing file but never initializes or generates meal menus.
 function shoppingRequest_(body){
