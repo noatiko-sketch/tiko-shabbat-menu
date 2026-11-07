@@ -24,15 +24,19 @@ export class GoogleTransport{
  private sessionId='';
  private remembered=false;
  private storageKey:string;
+ private cleanups:(()=>void)[]=[];
+ private frame:HTMLIFrameElement|null=null;
  notice='';
  constructor(deployment:string){
   const url=googleDeploymentUrl(deployment);
   this.storageKey='tiko-remembered-session-v1:'+url.pathname;
-  window.addEventListener('storage',event=>{if(event.key===this.storageKey&&this.remembered){this.session='';this.code='';this.remembered=false;window.dispatchEvent(new Event('tiko-auth-expired'));}});
+  const storageListener=(event:StorageEvent)=>{if(event.key===this.storageKey&&this.remembered){this.session='';this.code='';this.remembered=false;window.dispatchEvent(new Event('tiko-auth-expired'));}};
+  window.addEventListener('storage',storageListener);this.cleanups.push(()=>window.removeEventListener('storage',storageListener));
   url.searchParams.set('pagesBridge','1');url.searchParams.set('parentOrigin',location.origin);url.searchParams.set('nonce',this.nonce);
   this.readyPromise=new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>reject(Error('החיבור לגוגל לא נטען. אפשר לרענן ולנסות שוב.')),30000);
-   window.addEventListener('message',event=>{
+   const timer=setTimeout(()=>reject(Error('החיבור לגוגל לא נטען. אפשר לנסות להתחבר מחדש.')),15000);
+   this.cleanups.push(()=>{clearTimeout(timer);reject(Error('החיבור הופעל מחדש.'));});
+   const messageListener=(event:MessageEvent)=>{
     const data=event.data;
     if(!data||data.channel!==CHANNEL||data.nonce!==this.nonce||!trustedGoogleOrigin(event.origin))return;
     if(!this.source&&data.kind==='ready'&&event.source){
@@ -44,10 +48,12 @@ export class GoogleTransport{
     const pending=this.pending.get(data.id);if(!pending)return;
     if(!Number.isInteger(data.status)||data.status<200||data.status>599)return;
     this.pending.delete(data.id);pending.cleanup();if(data.status===401&&pending.authSession&&pending.authSession===this.session){this.clearRemembered();this.session='';this.code='';window.dispatchEvent(new Event('tiko-auth-expired'));}pending.resolve({status:data.status,body:data.body});
-   });
-   const frame=document.createElement('iframe');frame.src=url.href;frame.hidden=true;frame.title='חיבור מאובטח למאגר המשפחתי';frame.referrerPolicy='no-referrer';document.body.appendChild(frame);
+   };
+   window.addEventListener('message',messageListener);this.cleanups.push(()=>window.removeEventListener('message',messageListener));
+   const frame=document.createElement('iframe');this.frame=frame;frame.src=url.href;frame.hidden=true;frame.title='חיבור מאובטח למאגר המשפחתי';frame.referrerPolicy='no-referrer';document.body.appendChild(frame);
   });
  }
+ dispose(){for(const cleanup of this.cleanups)cleanup();this.cleanups=[];for(const task of this.pending.values()){task.cleanup();task.reject(Error('החיבור הופעל מחדש.'));}this.pending.clear();this.frame?.remove?.();this.source=null;}
  ready(){return this.readyPromise;}
  private clearRemembered(force=false){try{const value=readRememberedSession(localStorage,this.storageKey);if(force||!value||value.token===this.session)localStorage.removeItem(this.storageKey);}catch{}this.remembered=false;}
  private acceptSession(result:any){
@@ -60,9 +66,10 @@ export class GoogleTransport{
  async restoreRemembered(){
   let saved;try{saved=readRememberedSession(localStorage,this.storageKey);}catch{return false;}if(!saved)return false;
   this.code='';this.session=saved.token;this.sessionId=saved.sessionId;this.remembered=true;
-  const reply=await this.request({resource:'connect'});if(reply.status===401)return false;if(reply.status!==200)throw Error('לא ניתן לבדוק את הכניסה השמורה. נסו לרענן.');return true;
+  const renew=saved.expiresAt-Date.now()<30*86400000;
+  const reply=await this.request({resource:'connect',...(renew?{remember:true,label:deviceLabel()}: {})},AbortSignal.timeout(15000));if(reply.status===401)return false;if(reply.status!==200)throw Error('לא ניתן לבדוק את הכניסה השמורה. נסו להתחבר מחדש.');if(reply.body?.session)this.acceptSession(reply.body);return true;
  }
- async connect(code:string,remember=false){this.clearRemembered(true);this.session='';this.code=code;this.notice='';const reply=await this.request({resource:'connect'});if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}if(remember)await this.rememberThisDevice(true);}
+ async connect(code:string,remember=true){this.clearRemembered(true);this.session='';this.code=code;this.notice='';const reply=await this.request({resource:'connect',remember,label:deviceLabel()},AbortSignal.timeout(20000));if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}if(remember&&reply.body?.session)this.acceptSession(reply.body);else if(remember)this.notice='נכנסת בהצלחה. שמירת הכניסה במכשיר אינה זמינה כרגע.';}
  async rememberThisDevice(remember:boolean){const result=await this.passkeyRequest('remember',{remember,label:deviceLabel()});this.acceptSession(result);return this.remembered;}
  hasFamilyCode(){return !!this.code;}
  async passkeyRequest(operation:string,fields:Record<string,unknown>={},code?:string){
@@ -92,6 +99,8 @@ export class GoogleTransport{
 }
 
 let shared:GoogleTransport|undefined;
+export function retryGoogleConnection(){shared?.dispose();shared=undefined;return googleTransport();}
+
 export function googleTransport(){
  if(!shared){const url=document.querySelector('meta[name="tiko-google"]')?.getAttribute('content');if(!url)throw Error('חיבור המאגר טרם הוגדר.');shared=new GoogleTransport(url);}
  return shared;

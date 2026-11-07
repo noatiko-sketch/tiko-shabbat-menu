@@ -17,7 +17,7 @@ function authorizePasskeySession_(token){
  if(!passkeysAvailable_()||!passkeyFindSession_(passkeyRead_().auth,token,Date.now()))throw {status:401,message:'הכניסה פגה או שבוטלה. יש להיכנס שוב.'};
 }
 function issuePasskeySession_(auth,credentialId,remember,label,now){
- var token=passkeyRandom_(),entry={id:Utilities.getUuid(),hash:passkeyTokenHash_(token),expires:now+(remember?30*24:8)*60*60*1000,codeVersion:passkeyCodeVersion_(),remembered:remember,createdAt:now,label:typeof label==='string'?label.trim().slice(0,60):'המכשיר הזה'};
+ var token=passkeyRandom_(),entry={id:Utilities.getUuid(),hash:passkeyTokenHash_(token),expires:now+(remember?365*24:8)*60*60*1000,codeVersion:passkeyCodeVersion_(),remembered:remember,createdAt:now,label:typeof label==='string'?label.trim().slice(0,60):'המכשיר הזה'};
  if(credentialId)entry.credentialId=credentialId;else entry.authMethod='code';
  auth.sessions=auth.sessions.slice(-59);auth.sessions.push(entry);
  return {connected:true,session:token,sessionId:entry.id,expiresAt:entry.expires,remembered:remember};

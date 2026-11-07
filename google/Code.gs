@@ -40,6 +40,8 @@ function doGet(e){
 }
 // Public HTML-service entrypoint. The server bridge token is never sent to Pages.
 function pagesRequest(request,code,session){
+ // Password login and device persistence share one authenticated request.
+ if(request&&request.resource==='connect'&&request.remember===true&&passkeysAvailable_())return passkeysRequest_({operation:'remember',remember:true,label:request.label},code,session);
  if(request&&request.resource==='passkeys')return passkeysRequest_(request,code,session);
  try{authorize_(code,session);}catch(error){return {status:401,body:{detail:'קוד הכניסה אינו נכון או שהחשבון אינו מורשה.'}};}
  try{
@@ -132,7 +134,7 @@ function authorizePasskeySession_(token){
  if(!passkeysAvailable_()||!passkeyFindSession_(passkeyRead_().auth,token,Date.now()))throw {status:401,message:'הכניסה פגה או שבוטלה. יש להיכנס שוב.'};
 }
 function issuePasskeySession_(auth,credentialId,remember,label,now){
- var token=passkeyRandom_(),entry={id:Utilities.getUuid(),hash:passkeyTokenHash_(token),expires:now+(remember?30*24:8)*60*60*1000,codeVersion:passkeyCodeVersion_(),remembered:remember,createdAt:now,label:typeof label==='string'?label.trim().slice(0,60):'המכשיר הזה'};
+ var token=passkeyRandom_(),entry={id:Utilities.getUuid(),hash:passkeyTokenHash_(token),expires:now+(remember?365*24:8)*60*60*1000,codeVersion:passkeyCodeVersion_(),remembered:remember,createdAt:now,label:typeof label==='string'?label.trim().slice(0,60):'המכשיר הזה'};
  if(credentialId)entry.credentialId=credentialId;else entry.authMethod='code';
  auth.sessions=auth.sessions.slice(-59);auth.sessions.push(entry);
  return {connected:true,session:token,sessionId:entry.id,expiresAt:entry.expires,remembered:remember};
