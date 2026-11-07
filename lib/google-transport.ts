@@ -1,6 +1,7 @@
+import {deviceLabel,readRememberedSession,storeRememberedSession} from './remembered-session.ts';
 import {authenticatePasskey} from './passkeys-client.ts';
 type Reply={status:number;body:any};
-type Pending={resolve:(value:Reply)=>void;reject:(error:Error)=>void;cleanup:()=>void;authSession:boolean};
+type Pending={resolve:(value:Reply)=>void;reject:(error:Error)=>void;cleanup:()=>void;authSession:string};
 const CHANNEL='tiko-google-v1';
 export function trustedGoogleOrigin(origin:string){
  try{const url=new URL(origin);return url.protocol==='https:'&&(url.hostname==='script.googleusercontent.com'||url.hostname.endsWith('-script.googleusercontent.com')||url.hostname.endsWith('.script.googleusercontent.com'));}catch{return false;}
@@ -20,8 +21,14 @@ export class GoogleTransport{
  private readyPromise:Promise<{requiresCode:boolean;passkeys:boolean}>;
  private code='';
  private session='';
+ private sessionId='';
+ private remembered=false;
+ private storageKey:string;
+ notice='';
  constructor(deployment:string){
   const url=googleDeploymentUrl(deployment);
+  this.storageKey='tiko-remembered-session-v1:'+url.pathname;
+  window.addEventListener('storage',event=>{if(event.key===this.storageKey&&this.remembered){this.session='';this.code='';this.remembered=false;window.dispatchEvent(new Event('tiko-auth-expired'));}});
   url.searchParams.set('pagesBridge','1');url.searchParams.set('parentOrigin',location.origin);url.searchParams.set('nonce',this.nonce);
   this.readyPromise=new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>reject(Error('החיבור לגוגל לא נטען. אפשר לרענן ולנסות שוב.')),30000);
@@ -36,27 +43,40 @@ export class GoogleTransport{
     if(event.source!==this.source||event.origin!==this.origin||data.kind!=='reply')return;
     const pending=this.pending.get(data.id);if(!pending)return;
     if(!Number.isInteger(data.status)||data.status<200||data.status>599)return;
-    this.pending.delete(data.id);pending.cleanup();if(data.status===401&&pending.authSession&&this.session){this.session='';this.code='';window.dispatchEvent(new Event('tiko-auth-expired'));}pending.resolve({status:data.status,body:data.body});
+    this.pending.delete(data.id);pending.cleanup();if(data.status===401&&pending.authSession&&pending.authSession===this.session){this.clearRemembered();this.session='';this.code='';window.dispatchEvent(new Event('tiko-auth-expired'));}pending.resolve({status:data.status,body:data.body});
    });
    const frame=document.createElement('iframe');frame.src=url.href;frame.hidden=true;frame.title='חיבור מאובטח למאגר המשפחתי';frame.referrerPolicy='no-referrer';document.body.appendChild(frame);
   });
  }
  ready(){return this.readyPromise;}
- async connect(code:string){this.session='';this.code=code;const reply=await this.request({resource:'connect'});if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}}
+ private clearRemembered(force=false){try{const value=readRememberedSession(localStorage,this.storageKey);if(force||!value||value.token===this.session)localStorage.removeItem(this.storageKey);}catch{}this.remembered=false;}
+ private acceptSession(result:any){
+  if(typeof result.session!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(result.session)||!Number.isFinite(result.expiresAt)||typeof result.sessionId!=='string')throw Error('לא התקבל אישור כניסה תקין.');
+  this.clearRemembered(true);this.session=result.session;this.sessionId=result.sessionId;this.remembered=false;this.notice='';
+  if(result.remembered){try{this.remembered=storeRememberedSession(localStorage,this.storageKey,{token:this.session,expiresAt:result.expiresAt,sessionId:this.sessionId});}catch{}if(!this.remembered)this.notice='נכנסת בהצלחה, אך הדפדפן לא מאפשר לשמור כניסה במכשיר הזה.';}
+ }
+ isRemembered(){return this.remembered;}
+ currentSessionId(){return this.sessionId;}
+ async restoreRemembered(){
+  let saved;try{saved=readRememberedSession(localStorage,this.storageKey);}catch{return false;}if(!saved)return false;
+  this.code='';this.session=saved.token;this.sessionId=saved.sessionId;this.remembered=true;
+  const reply=await this.request({resource:'connect'});if(reply.status===401)return false;if(reply.status!==200)throw Error('לא ניתן לבדוק את הכניסה השמורה. נסו לרענן.');return true;
+ }
+ async connect(code:string,remember=false){this.clearRemembered(true);this.session='';this.code=code;this.notice='';const reply=await this.request({resource:'connect'});if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}if(remember)await this.rememberThisDevice(true);}
+ async rememberThisDevice(remember:boolean){const result=await this.passkeyRequest('remember',{remember,label:deviceLabel()});this.acceptSession(result);return this.remembered;}
  hasFamilyCode(){return !!this.code;}
  async passkeyRequest(operation:string,fields:Record<string,unknown>={},code?:string){
   const reply=await this.request({resource:'passkeys',operation,...fields},undefined,code);
   if(reply.status!==200)throw Error(reply.body?.detail||'לא ניתן להשלים את הפעולה.');return reply.body;
  }
  async preparePasskeyLogin(){return this.passkeyRequest('login_begin');}
- async connectWithPasskey(begin:{challengeId:string;options:any}){
-  this.code='';this.session='';
+ async connectWithPasskey(begin:{challengeId:string;options:any},remember=false){
+  this.clearRemembered(true);this.code='';this.session='';
   const credential=await authenticatePasskey(begin.options);
-  const result=await this.passkeyRequest('login_finish',{challengeId:begin.challengeId,credential});
-  if(typeof result.session!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(result.session))throw Error('לא התקבל אישור כניסה תקין.');
-  this.session=result.session;
+  const result=await this.passkeyRequest('login_finish',{challengeId:begin.challengeId,credential,remember,label:deviceLabel()});
+  this.acceptSession(result);
  }
- async disconnect(){try{await this.passkeyRequest('logout');}finally{this.code='';this.session='';}}
+ async disconnect(){try{await this.passkeyRequest('logout');}finally{this.clearRemembered(true);this.code='';this.session='';this.sessionId='';}}
  async request(payload:Record<string,unknown>,signal?:AbortSignal,codeOverride?:string):Promise<Reply>{
   await this.ready();if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   const id=String(++this.sequence);
@@ -65,7 +85,7 @@ export class GoogleTransport{
    const fail=(error:Error)=>{if(!this.pending.delete(id))return;cleanup();reject(error);};
    const abort=()=>fail(new DOMException('Aborted','AbortError'));
    const timer=setTimeout(()=>fail(Error('השמירה ארכה יותר מדי זמן. יש לרענן לפני ניסיון נוסף.')),60000);
-   this.pending.set(id,{resolve,reject,cleanup,authSession:codeOverride===undefined&&!!this.session});signal?.addEventListener('abort',abort,{once:true});
+   this.pending.set(id,{resolve,reject,cleanup,authSession:codeOverride===undefined?this.session:''});signal?.addEventListener('abort',abort,{once:true});
    (this.source as Window).postMessage({channel:CHANNEL,nonce:this.nonce,kind:'request',id,payload,code:codeOverride===undefined?this.code:codeOverride,session:codeOverride===undefined?this.session:''},this.origin);
   });
  }
