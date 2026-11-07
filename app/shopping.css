@@ -17,3 +17,5 @@
 .shopping-add-panel .shopping-photo-toolbar{display:block}.shopping-add-panel .shopping-photo-actions{flex-wrap:wrap}
 .shopping-add-panel .shopping-photo-layout{grid-template-columns:minmax(0,1fr)}
 @media(max-width:760px){.shopping-layout.is-adding{grid-template-columns:minmax(0,1fr);gap:20px}.shopping-layout.is-adding .shopping-add-panel{grid-row:1}.shopping-compact-header h1{font-size:24px}.shopping-compact-header{gap:10px;padding:20px 0}.shopping-add-trigger{padding:10px 14px}}
+
+.shopping-item-copy .shopping-added-by{font-size:12px;line-height:1.5;color:#526a49;font-weight:400;overflow-wrap:anywhere}

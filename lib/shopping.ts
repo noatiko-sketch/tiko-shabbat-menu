@@ -6,7 +6,7 @@ export const shoppingCategories = {
 } as const;
 export type ShoppingCategory = keyof typeof shoppingCategories;
 export type ShoppingProduct = {id:string;name:string;category:ShoppingCategory};
-export type ShoppingItem = {productId:string;quantity:string;bought:boolean;updated_by:string;updated_at:string};
+export type ShoppingItem = {productId:string;quantity:string;bought:boolean;added_by?:string;updated_by:string;updated_at:string};
 export type ShoppingState = {revision:number;products:ShoppingProduct[];items:ShoppingItem[];receipts:{id:string;actor:string}[]};
 export type ShoppingImportItem = {name:string;category:ShoppingCategory;quantity:string};
 export type ShoppingAction = {type:'shopping_add'|'shopping_toggle'|'shopping_remove'|'shopping_clear_bought'|'shopping_recategorize'|'shopping_import';mutationId:string;revision?:number;productId?:string;name?:string;category?:string;quantity?:string;bought?:boolean;items?:ShoppingImportItem[]};
@@ -52,8 +52,12 @@ export function editShopping(source:ShoppingState,action:ShoppingAction,actor:st
   shoppingCheck(action.quantity===undefined||typeof action.quantity==='string'&&action.quantity.length<=60,'כמות ארוכה מדי — עד 60 תווים.');
   const item=s.items.find(i=>i.productId===product!.id);
   const quantity=action.quantity?.trim()??item?.quantity??'';
-  if(item)Object.assign(item,{quantity,bought:false,updated_by:actor,updated_at:now});
-  else {shoppingCheck(s.items.length<500,'אפשר להוסיף עד 500 מוצרים לרשימה.');s.items.push({productId:product!.id,quantity,bought:false,updated_by:actor,updated_at:now});}
+  if(item){
+   // A bought item added again is a new request; pending duplicates keep their requester.
+   if(item.bought)item.added_by=actor;
+   Object.assign(item,{quantity,bought:false,updated_by:actor,updated_at:now});
+  }
+  else {shoppingCheck(s.items.length<500,'אפשר להוסיף עד 500 מוצרים לרשימה.');s.items.push({productId:product!.id,quantity,bought:false,added_by:actor,updated_by:actor,updated_at:now});}
  }else if(action.type==='shopping_toggle'||action.type==='shopping_remove'){
   const item=s.items.find(i=>i.productId===action.productId);shoppingCheck(item,'המוצר כבר הוסר מהרשימה. יש לרענן.');
   if(action.type==='shopping_toggle'){
