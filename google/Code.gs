@@ -3748,12 +3748,13 @@ function editShopping(source, action, actor, now) {
     if (action.type === 'shopping_import') {
         shoppingCheck(Array.isArray(action.items) && action.items.length > 0 && action.items.length <= 80, 'יש לבחור בין מוצר אחד ל־80 מוצרים.');
         shoppingCheck(action.mutationId.length <= 70, 'מזהה ייבוא לא תקין.');
-        let next = source;
+        let next = structuredClone(source);
         for (const [index, item] of action.items.entries()) {
             shoppingCheck(item && typeof item === 'object', 'מוצר לא תקין.');
-            next = editShopping(next, { type: 'shopping_add', name: item.name, category: item.category, quantity: item.quantity, mutationId: action.mutationId + '-' + index }, actor, now);
+            next = editShopping(next, { type: 'shopping_add', name: item.name, category: item.category, quantity: item.quantity, skipExisting: action.skipExisting, mutationId: action.mutationId + '-' + index }, actor, now);
         }
-        next.revision = source.revision + 1;
+        if (next.revision !== source.revision)
+            next.revision = source.revision + 1;
         return next;
     }
     const s = structuredClone(source);
@@ -3761,23 +3762,32 @@ function editShopping(source, action, actor, now) {
         shoppingCheck(typeof action.name === 'string', 'יש לכתוב שם מוצר.');
         const name = action.name.normalize('NFKC').replace(/\s+/g, ' ').trim();
         shoppingCheck(name.length > 0 && name.length <= 100, 'יש לכתוב שם מוצר עד 100 תווים.');
-        const key = shoppingName(name), hidden = s.hiddenDefaults || [];
-        if (action.type === 'shopping_default_remove')
-            s.hiddenDefaults = [...new Set([...hidden, key])];
+        const key = shoppingName(name);
+        // Explicit membership starts empty, replacing the old inferred/seeded defaults.
+        s.defaultProductIds || (s.defaultProductIds = []);
+        if (action.type === 'shopping_default_remove') {
+            const ids = new Set(s.products.filter(p => shoppingName(p.name) === key).map(p => p.id));
+            s.defaultProductIds = s.defaultProductIds.filter(id => !ids.has(id));
+        }
         else {
             shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories, action.category || ''), 'יש לבחור קטגוריה.');
-            const product = s.products.find(p => shoppingName(p.name) === key);
+            let product = s.products.find(p => shoppingName(p.name) === key);
             if (product)
                 product.category = action.category;
             else {
                 shoppingCheck(s.products.length < 2000, 'המאגר מכיל כבר 2,000 מוצרים.');
-                s.products.push({ id: 'p-' + action.mutationId, name, category: action.category });
+                product = { id: 'p-' + action.mutationId, name, category: action.category };
+                s.products.push(product);
             }
-            s.hiddenDefaults = hidden.filter(value => value !== key);
+            if (!s.defaultProductIds.includes(product.id))
+                s.defaultProductIds.push(product.id);
         }
     }
     else if (action.type === 'shopping_add') {
         let product = s.products.find(p => p.id === action.productId);
+        const existing = product || s.products.find(p => typeof action.name === 'string' && shoppingName(p.name) === shoppingName(action.name));
+        if (action.skipExisting && existing && s.items.some(item => item.productId === existing.id))
+            return s;
         if (!action.productId) {
             shoppingCheck(typeof action.name === 'string', 'יש לכתוב שם מוצר.');
             const name = action.name.replace(/\s+/g, ' ').trim();

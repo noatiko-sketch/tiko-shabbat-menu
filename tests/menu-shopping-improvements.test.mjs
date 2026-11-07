@@ -41,7 +41,9 @@ test('manual category corrections persist after removal and are reused by the de
  const id=s.products[0].id;assert.equal(s.products.length,1);assert.equal(s.products[0].category,'dairy');
  s=editShopping(s,{type:'shopping_remove',productId:id,mutationId:'remove-milk'},'נעה',ctx.now);
  assert.equal(s.products[0].category,'dairy');
- const choices=defaultShoppingChoices(s.products);assert.equal(choices.filter(p=>shoppingName(p.name)==='חלב').length,1);assert.equal(choices.find(p=>shoppingName(p.name)==='חלב').category,'dairy');
+ s=editShopping(s,{type:'shopping_default_save',name:'חלב',category:'dairy',mutationId:'save-default-milk'},'נעה',ctx.now);
+ s=editShopping(s,{type:'shopping_default_save',name:'עגבניות',category:'produce',mutationId:'save-default-tomato'},'נעה',ctx.now);
+ const choices=defaultShoppingChoices(s.products,s.defaultProductIds);assert.equal(choices.filter(p=>shoppingName(p.name)==='חלב').length,1);assert.equal(choices.find(p=>shoppingName(p.name)==='חלב').category,'dairy');
  s=editShopping(s,{type:'shopping_import',items:[choices.find(p=>p.name==='חלב'),choices.find(p=>p.name==='עגבניות')].map(p=>({...p,quantity:''})),mutationId:'bulk-defaults'},'נעה',ctx.now);
- assert.equal(s.items.length,2);assert.equal(s.revision,4);
+ assert.equal(s.items.length,2);assert.equal(s.revision,6);
 });
