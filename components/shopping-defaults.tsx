@@ -1,12 +1,12 @@
 'use client';
 import {useState} from 'react';
-import {Plus,X} from 'lucide-react';
+import {LoaderCircle,Plus,X} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogTrigger} from '@/components/ui/dialog';
 import {shoppingCategories,shoppingName,type ShoppingCategory,type ShoppingProduct,type ShoppingImportItem} from '@/lib/shopping';
 import {defaultShoppingChoices} from '@/lib/shopping-defaults';
 
 type DefaultProduct={name:string;category:ShoppingCategory};
-export function ShoppingDefaults({products,defaultProductIds=[],onAdd,onSave,onRemove}:{products:ShoppingProduct[];defaultProductIds?:string[];onAdd:(items:ShoppingImportItem[])=>Promise<boolean>;onSave:(product:DefaultProduct)=>Promise<boolean>;onRemove:(name:string)=>Promise<boolean>}){
+export function ShoppingDefaults({products,defaultProductIds=[],pending=false,saveError='',onAdd,onSave,onRemove}:{products:ShoppingProduct[];defaultProductIds?:string[];pending?:boolean;saveError?:string;onAdd:(items:ShoppingImportItem[])=>Promise<boolean>;onSave:(product:DefaultProduct)=>Promise<boolean>;onRemove:(name:string)=>Promise<boolean>}){
  const [open,setOpen]=useState(false),[selected,setSelected]=useState<string[]>([]),[saving,setSaving]=useState(false),[error,setError]=useState('');
  const [adding,setAdding]=useState(false),[name,setName]=useState(''),[category,setCategory]=useState<ShoppingCategory>('general');
  const choices=defaultShoppingChoices(products,defaultProductIds);
@@ -14,18 +14,19 @@ export function ShoppingDefaults({products,defaultProductIds=[],onAdd,onSave,onR
  const changeOpen=(value:boolean)=>{setOpen(value);if(!value){setSelected([]);setError('');}};
  return <Dialog open={open} onOpenChange={changeOpen}>
   <DialogTrigger asChild><button type="button" className="shopping-defaults-trigger">מהרשימה הקבועה <Plus size={17}/></button></DialogTrigger>
-  <DialogContent fullscreen className="shopping-default-modal" dir="rtl" showCloseButton={false} aria-describedby={undefined}>
+  <DialogContent className="shopping-default-modal" dir="rtl" showCloseButton={false} aria-describedby={undefined}>
    <header className="shopping-default-modal-header"><div className="shopping-default-modal-title"><DialogTitle>הרשימה הקבועה</DialogTitle><button type="button" className="shopping-remove" aria-label="סגירת הרשימה הקבועה" onClick={()=>changeOpen(false)}><X size={22}/></button></div>
-    <button type="button" className="shopping-default-add" disabled={saving} aria-expanded={adding} onClick={()=>setAdding(value=>!value)}>{adding?<X size={17}/>:<Plus size={17}/>} {adding?'סגירה':'הוספת מוצר קבוע'}</button>
+    <button type="button" className="shopping-default-add" disabled={saving} aria-expanded={adding} onClick={()=>{if(!adding&&!saveError){setName('');setCategory('general');}setAdding(value=>!value);}}>{adding?<X size={17}/>:<Plus size={17}/>} {adding?'סגירה':'הוספת מוצר קבוע'}</button>
     {adding&&<form className="shopping-form shopping-default-form" aria-label="הוספת פריט לרשימה הקבועה" onSubmit={async event=>{
      event.preventDefault();if(saving||!name.trim())return;setSaving(true);setError('');
-     try{if(await onSave({name:name.trim(),category})){setName('');setCategory('general');setAdding(false);}else setError('הפריט לא נשמר. אפשר לנסות שוב.');}finally{setSaving(false);}
+     try{if(await onSave({name:name.trim(),category})){setAdding(false);}else setError('הפריט לא נשמר. אפשר לנסות שוב.');}finally{setSaving(false);}
     }}>
      <label>שם המוצר<input autoFocus required maxLength={100} value={name} disabled={saving} onChange={event=>{const value=event.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}}/></label>
      <label>קטגוריה<select value={category} disabled={saving} onChange={event=>setCategory(event.target.value as ShoppingCategory)}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label>
      <button className="shopping-primary" disabled={saving||!name.trim()} type="submit">שמירה ברשימה הקבועה</button>
     </form>}
-    {error&&<p className="shopping-error" role="alert">{error}</p>}
+    {pending&&<p className="shopping-default-saving" role="status"><LoaderCircle className="spin" size={14}/> שומרים…</p>}
+    {(error||saveError)&&<p className="shopping-error" role="alert">{error||saveError}</p>}
    </header>
    <div className="shopping-default-modal-body" aria-busy={saving}>
     {Object.entries(shoppingCategories).map(([category,label])=>{
