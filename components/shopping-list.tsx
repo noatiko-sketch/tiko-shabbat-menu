@@ -88,7 +88,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
      </details>}
     </div>{showAdd&&<aside id="shopping-add-panel" className="shopping-add-panel" aria-label="הוספת מוצרים">
      <h2 className="sr-only">הוספת מוצרים</h2>
-     <ShoppingDefaults products={products} items={items} onAdd={items=>act({type:'shopping_import',items})}/>
+     <ShoppingDefaults products={products} items={items} hiddenDefaults={data?.hiddenDefaults||[]} onSave={product=>act({type:'shopping_default_save',...product})} onRemove={name=>act({type:'shopping_default_remove',name})} onAdd={items=>act({type:'shopping_import',items})}/>
      <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{const value=e.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}} maxLength={100} required placeholder="שם המוצר"/></label>
       <div className="shopping-form-pair"><label>קטגוריה<select value={category} onChange={e=>setCategory(e.target.value as ShoppingCategory)}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
       <button className="shopping-primary" type="submit" disabled={adding||!name.trim()}>{adding?<LoaderCircle className="spin" size={18}/>:<Plus size={18}/>} הוספה</button>

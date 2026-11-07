@@ -30,3 +30,8 @@
 .shopping-default-choice small {display:flex;gap:4px;align-items:center;color:#627057}
 .shopping-default-choices > .shopping-primary {position:sticky;bottom:0;width:100%;box-shadow:0 -4px 12px #fff}
 .shopping-item-copy .shopping-added-by{font-size:12px;line-height:1.5;color:#526a49;font-weight:400;overflow-wrap:anywhere}
+.shopping-default-row {display:flex;gap:6px;align-items:center}
+.shopping-default-row .shopping-default-choice {flex:1;min-width:0}
+.shopping-default-add {display:flex;align-items:center;gap:6px;min-height:44px;margin-bottom:10px;color:#46664d;font:inherit}
+.shopping-default-form {padding:12px;margin-bottom:16px;border:1px solid #d8dfd0;border-radius:12px}
+.shopping-default-choices legend {width:100%;border-bottom:1px solid #d8dfd0;margin-bottom:6px}
