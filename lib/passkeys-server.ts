@@ -4,7 +4,7 @@ import {decodeCBOR,decodePartialCBOR} from '@levischuck/tiny-cbor';
 type Hash=(bytes:Uint8Array)=>Uint8Array;
 export type PasskeyCredential={id:string;publicKey:string;counter:number;backedUp:boolean;backupEligible:boolean;userId:string;label:string;createdAt:number;lastUsedAt?:number};
 export type PasskeyChallenge={id:string;value:string;purpose:'register'|'login';expires:number;userId?:string;label?:string};
-export type PasskeySession={hash:string;credentialId:string;expires:number;codeVersion:string};
+export type PasskeySession={hash:string;credentialId?:string;authMethod?:'code';id?:string;remembered?:boolean;label?:string;createdAt?:number;expires:number;codeVersion:string};
 export type PasskeyState={credentials:PasskeyCredential[];challenges:PasskeyChallenge[];sessions:PasskeySession[]};
 const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 export function toBase64url(bytes:Uint8Array){let out='';for(let i=0;i<bytes.length;i+=3){const n=(bytes[i]<<16)|((bytes[i+1]||0)<<8)|(bytes[i+2]||0);out+=alphabet[(n>>>18)&63]+alphabet[(n>>>12)&63];if(i+1<bytes.length)out+=alphabet[(n>>>6)&63];if(i+2<bytes.length)out+=alphabet[n&63];}return out;}
@@ -34,7 +34,7 @@ function authenticator(data:Uint8Array,rpId:string,hash:Hash){
  return {flags,counter:uint32(data,33),backupEligible:!!(flags&8),backedUp:!!(flags&16)};
 }
 export function newPasskeyState():PasskeyState{return {credentials:[],challenges:[],sessions:[]};}
-export function prunePasskeys(state:PasskeyState,now:number){state.challenges=state.challenges.filter(c=>c.expires>now);state.sessions=state.sessions.filter(s=>s.expires>now&&state.credentials.some(c=>c.id===s.credentialId));}
+export function prunePasskeys(state:PasskeyState,now:number){state.challenges=state.challenges.filter(c=>c.expires>now);state.sessions=state.sessions.filter(s=>s.expires>now&&(s.credentialId?state.credentials.some(c=>c.id===s.credentialId):s.authMethod==='code'));}
 export function takePasskeyChallenge(state:PasskeyState,id:unknown,purpose:PasskeyChallenge['purpose'],now:number){
  const index=state.challenges.findIndex(c=>c.id===id&&c.purpose===purpose);passkeyCheck(index>=0,'בקשת הכניסה פגה או כבר נוצלה. נסו שוב.',401);
  const [challenge]=state.challenges.splice(index,1);passkeyCheck(challenge.expires>now,'בקשת הכניסה פגה. נסו שוב.',401);return challenge;

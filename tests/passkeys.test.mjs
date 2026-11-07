@@ -77,3 +77,28 @@ test('generated verifier uses BigInt constructors accepted by the Apps Script up
  const source=ts.createSourceFile('Code.js',readFileSync(new URL('../google/Code.gs',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
  const visit=node=>{assert.equal(ts.isBigIntLiteral(node),false);ts.forEachChild(node,visit);};visit(source);
 });
+test('remembered code login lasts 30 days, stores only a token hash and is revocable without a passkey',()=>{
+ const e=server();assert.equal(e.call('remember',{remember:true},'wrong').status,401);
+ const r=e.call('remember',{remember:true,label:'אנדרואיד'});assert.equal(r.status,200);
+ const token=r.body.session;assert.equal(e.state.passkeys_v1.credentials.length,0);assert.equal(e.state.passkeys_v1.sessions[0].authMethod,'code');assert.equal(JSON.stringify(e.state).includes(token),false);
+ e.advance(2*24*60*60*1000);assert.equal(e.s.pagesRequest({resource:'connect'},'',token).status,200);
+ const list=e.call('list');assert.equal(list.body.devices.length,1);assert.equal(list.body.devices[0].label,'אנדרואיד');assert.equal(list.body.devices[0].hash,undefined);
+ assert.equal(e.call('revoke_device',{deviceId:r.body.sessionId},'',token).status,401);
+ assert.equal(e.call('revoke_device',{deviceId:r.body.sessionId}).status,200);assert.equal(e.s.pagesRequest({resource:'connect'},'',token).status,401);
+});
+test('remembered Passkey login still requires a real signature and expires or is invalidated by key revocation',()=>{
+ const e=server(),d=enroll(e),begin=e.call('login_begin',{},'').body;
+ const r=e.call('login_finish',{challengeId:begin.challengeId,credential:assertion(d,begin),remember:true,label:'אייפון'},'');assert.equal(r.status,200);assert.equal(r.body.remembered,true);
+ e.advance(29*24*60*60*1000);assert.equal(e.s.pagesRequest({resource:'connect'},'',r.body.session).status,200);
+ e.call('revoke',{credentialId:d.id});assert.equal(e.s.pagesRequest({resource:'connect'},'',r.body.session).status,401);
+ const e2=server(),r2=e2.call('remember',{remember:true});e2.advance(30*24*60*60*1000+1);assert.equal(e2.s.pagesRequest({resource:'connect'},'',r2.body.session).status,401);
+});
+test('forgetting replaces the remembered token with an eight-hour session; logout and code rotation revoke access',()=>{
+ const e=server(),saved=e.call('remember',{remember:true}).body;
+ const short=e.call('remember',{remember:false},'',saved.session);assert.equal(short.status,200);assert.equal(short.body.remembered,false);
+ assert.equal(e.s.pagesRequest({resource:'connect'},'',saved.session).status,401);assert.equal(e.s.pagesRequest({resource:'connect'},'',short.body.session).status,200);assert.equal(e.call('list').body.devices.length,0);
+ e.advance(8*60*60*1000+1);assert.equal(e.s.pagesRequest({resource:'connect'},'',short.body.session).status,401);
+ const rotated=e.call('remember',{remember:true}).body;e.props.TIKO_FAMILY_CODE='different';assert.equal(e.s.pagesRequest({resource:'connect'},'',rotated.session).status,401);
+ e.props.TIKO_FAMILY_CODE=code;const logged=e.call('remember',{remember:true}).body;assert.equal(e.call('logout',{},'',logged.session).status,200);assert.equal(e.s.pagesRequest({resource:'connect'},'',logged.session).status,401);
+ assert.equal(e.call('remember',{remember:true},'',saved.session).status,401,'revoked sessions cannot mint new tokens');
+});
