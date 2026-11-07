@@ -56,7 +56,7 @@ function pagesRequest(request,code,session){
   }
   if(request.resource==='shopping'){
    if(request.method==='GET')action.type='shopping_snapshot';
-   if(!['shopping_snapshot','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
+   if(!['shopping_snapshot','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import','shopping_default_save','shopping_default_remove'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
    return {status:200,body:shoppingRequest_(action)};
   }
   if(request.resource!=='menu')throw {status:400,message:'פעולה לא מוכרת.'};

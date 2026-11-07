@@ -56,7 +56,7 @@ function pagesRequest(request,code,session){
   }
   if(request.resource==='shopping'){
    if(request.method==='GET')action.type='shopping_snapshot';
-   if(!['shopping_snapshot','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
+   if(!['shopping_snapshot','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import','shopping_default_save','shopping_default_remove'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
    return {status:200,body:shoppingRequest_(action)};
   }
   if(request.resource!=='menu')throw {status:400,message:'פעולה לא מוכרת.'};
@@ -3757,7 +3757,26 @@ function editShopping(source, action, actor, now) {
         return next;
     }
     const s = structuredClone(source);
-    if (action.type === 'shopping_add') {
+    if (action.type === 'shopping_default_save' || action.type === 'shopping_default_remove') {
+        shoppingCheck(typeof action.name === 'string', 'יש לכתוב שם מוצר.');
+        const name = action.name.normalize('NFKC').replace(/\s+/g, ' ').trim();
+        shoppingCheck(name.length > 0 && name.length <= 100, 'יש לכתוב שם מוצר עד 100 תווים.');
+        const key = shoppingName(name), hidden = s.hiddenDefaults || [];
+        if (action.type === 'shopping_default_remove')
+            s.hiddenDefaults = [...new Set([...hidden, key])];
+        else {
+            shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories, action.category || ''), 'יש לבחור קטגוריה.');
+            const product = s.products.find(p => shoppingName(p.name) === key);
+            if (product)
+                product.category = action.category;
+            else {
+                shoppingCheck(s.products.length < 2000, 'המאגר מכיל כבר 2,000 מוצרים.');
+                s.products.push({ id: 'p-' + action.mutationId, name, category: action.category });
+            }
+            s.hiddenDefaults = hidden.filter(value => value !== key);
+        }
+    }
+    else if (action.type === 'shopping_add') {
         let product = s.products.find(p => p.id === action.productId);
         if (!action.productId) {
             shoppingCheck(typeof action.name === 'string', 'יש לכתוב שם מוצר.');

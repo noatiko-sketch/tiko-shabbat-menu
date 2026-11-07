@@ -11,9 +11,11 @@ const staples:[ShoppingCategory,string[]][]=[
 ];
 // The family catalog extends the starter list and overrides its remembered categories.
 // This is a chooser only: no item is added to the active list without a selection.
-export function defaultShoppingChoices(products:ShoppingProduct[]){
+export function defaultShoppingChoices(products:ShoppingProduct[],hiddenDefaults:string[]=[]){
  const choices=new Map<string,{name:string;category:ShoppingCategory}>();
  for(const [category,names] of staples)for(const name of names)choices.set(shoppingName(name),{name,category});
  for(const product of products)choices.set(shoppingName(product.name),{name:product.name,category:product.category});
- return [...choices.values()];
+ const hidden=new Set(hiddenDefaults.map(shoppingName));
+ return [...choices.values()].filter(product=>!hidden.has(shoppingName(product.name)));
+
 }
