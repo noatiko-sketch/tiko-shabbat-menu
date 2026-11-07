@@ -31,3 +31,10 @@ export class ShoppingMutations {
   }
  }
 }
+
+// Accepting a background change is distinct from confirming its remote write.
+// The queue has already validated and published it; failures still roll it back.
+export async function acceptShoppingMutation(completion:Promise<void>,background:boolean,onError:(error:unknown)=>void):Promise<boolean>{
+ if(background){void completion.catch(onError);return true;}
+ try{await completion;return true;}catch(error){onError(error);return false;}
+}

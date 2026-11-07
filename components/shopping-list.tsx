@@ -6,7 +6,7 @@ import {shoppingCategories,shoppingName,type ShoppingAction,type ShoppingCategor
 import {confirmShoppingAddition} from '@/lib/shopping-addition';
 import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 import {ShoppingDefaults} from '@/components/shopping-defaults';
-import {ShoppingMutations} from '@/lib/shopping-mutations';
+import {ShoppingMutations,acceptShoppingMutation} from '@/lib/shopping-mutations';
 
 export function ShoppingList({person,onSavingChange}:{person:string;onSavingChange:(saving:boolean)=>void}){
  const [snapshot,setSnapshot]=useState<ShoppingSnapshot|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('');
@@ -35,21 +35,23 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',update);window.removeEventListener('online',update);};
  },[refresh]);
  useEffect(()=>{const warn=(event:BeforeUnloadEvent)=>{if(pending.current)event.preventDefault();};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[]);
- const act=async(fields:Omit<ShoppingAction,'mutationId'|'revision'>)=>{
+ const act=async(fields:Omit<ShoppingAction,'mutationId'|'revision'>,background=false)=>{
   const confirmed=snapshotRef.current&&confirmShoppingAddition(snapshotRef.current.shopping,fields,message=>window.confirm(message));
   if(!confirmed)return fields.skipExisting===true;
-  return actApproved(confirmed);
+  return actApproved(confirmed,background);
  };
- const actApproved=async(fields:Omit<ShoppingAction,'mutationId'|'revision'>)=>{
+ const actApproved=async(fields:Omit<ShoppingAction,'mutationId'|'revision'>,background=false)=>{
   setError('');version.current++;flight.current?.abort();
+  const reportError=(e:unknown)=>{if(mounted.current){setError(`השינוי לא אושר ונשארה הרשימה האחרונה שנשמרה. ${(e as Error).message||'יש לבדוק את החיבור ולנסות שוב.'}`);void refresh(true);}};
   try{
    const action={...fields,mutationId:crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('')};
-   await queue.current!.enqueue(action,async revision=>{
+   const completion=queue.current!.enqueue(action,async revision=>{
     const r=await apiFetch('/api/shopping',{method:'POST',cache:'no-store',signal:AbortSignal.timeout(35000),headers:{'content-type':'application/json','x-family-member':encodeURIComponent(person)},body:JSON.stringify({...action,revision})});
     const result=await r.json() as {snapshot?:ShoppingSnapshot;detail?:string};if(!r.ok||!result.snapshot?.shopping)throw Error(result.detail||'לא התקבל אישור שמירה.');return result.snapshot;
-   });return true;
+   });
+   return acceptShoppingMutation(completion,background,reportError);
   }catch(e){
-   if(mounted.current){setError(`השינוי לא אושר ונשארה הרשימה האחרונה שנשמרה. ${(e as Error).message||'יש לבדוק את החיבור ולנסות שוב.'}`);void refresh(true);}return false;
+   reportError(e);return false;
   }
  };
  const submit=async(event:FormEvent)=>{
@@ -62,7 +64,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
  const catalog=products.filter(p=>(!filter||p.category===filter)&&p.name.includes(search.trim())).sort((a,b)=>a.name.localeCompare(b.name,'he'));
  const categoryEditor=(product:ShoppingProduct,scope='active')=>moving===`${scope}:${product.id}`&&<div className="shopping-category-editor"><label>קטגוריה של {product.name}<select aria-label={`קטגוריה של ${product.name}`} value={product.category} onChange={e=>{setMoving(null);void act({type:'shopping_recategorize',productId:product.id,category:e.target.value});}}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label><button type="button" onClick={()=>setMoving(null)}>סגירה</button></div>;
  const moveButton=(product:ShoppingProduct,scope='active')=><button className="shopping-remove" type="button" aria-label={`שינוי קטגוריה של ${product.name}`} aria-expanded={moving===`${scope}:${product.id}`} onClick={()=>setMoving(moving===`${scope}:${product.id}`?null:`${scope}:${product.id}`)}><Pencil size={16}/></button>;
- const defaultButton=(product:ShoppingProduct)=>{const selected=data?.defaultProductIds?.includes(product.id)||false;return <button className={`shopping-remove shopping-default-pin ${selected?'is-pinned':''}`} type="button" aria-pressed={selected} aria-label={`${selected?'הסרת':'הוספת'} ${product.name} ${selected?'מהרשימה':'לרשימה'} הקבועה`} title={selected?'הסרה מהרשימה הקבועה':'הוספה לרשימה הקבועה'} onClick={()=>void act({type:selected?'shopping_default_remove':'shopping_default_save',name:product.name,category:product.category})}><ListPlus size={19}/></button>;};
+ const defaultButton=(product:ShoppingProduct)=>{const selected=data?.defaultProductIds?.includes(product.id)||false;return <button className={`shopping-remove shopping-default-pin ${selected?'is-pinned':''}`} type="button" aria-pressed={selected} aria-label={`${selected?'הסרת':'הוספת'} ${product.name} ${selected?'מהרשימה':'לרשימה'} הקבועה`} title={selected?'הסרה מהרשימה הקבועה':'הוספה לרשימה הקבועה'} onClick={()=>void act({type:selected?'shopping_default_remove':'shopping_default_save',name:product.name,category:product.category},true)}><ListPlus size={19}/></button>;};
  const renderItem=(product:ShoppingProduct,item:typeof items[number])=><li className={`shopping-row ${item.bought?'is-bought':''}`} key={product.id}>
   <label className="shopping-check"><input type="checkbox" checked={item.bought} onChange={e=>void act({type:'shopping_toggle',productId:product.id,bought:e.target.checked})}/><span className="shopping-checkmark" aria-hidden="true">{item.bought&&<Check size={20}/>}</span><span className="shopping-item-copy"><strong>{product.name}</strong>{item.quantity&&<small>{item.quantity}</small>}<small className="shopping-added-by">{item.added_by?`נוסף על ידי ${item.added_by}`:item.updated_by?`עדכון אחרון: ${item.updated_by}`:"מי שהוסיף לא תועד"}</small></span><span className="sr-only">{item.bought?' — נקנה, ביטול הסימון יחזיר לרשימה':' — סימון כנקנה'}</span></label>
   {moveButton(product)}<button className="shopping-remove" type="button" aria-label={`הסרת ${product.name} מהרשימה`} onClick={()=>void act({type:'shopping_remove',productId:product.id})}><X size={17}/></button>{defaultButton(product)}{categoryEditor(product)}
@@ -89,7 +91,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
      </details>}
     </div>{showAdd&&<aside id="shopping-add-panel" className="shopping-add-panel" aria-label="הוספת מוצרים">
      <h2 className="sr-only">הוספת מוצרים</h2>
-     <ShoppingDefaults products={products} defaultProductIds={data?.defaultProductIds||[]} onSave={product=>act({type:'shopping_default_save',...product})} onRemove={name=>act({type:'shopping_default_remove',name})} onAdd={items=>act({type:'shopping_import',items,skipExisting:true})}/>
+     <ShoppingDefaults pending={saving} saveError={error} products={products} defaultProductIds={data?.defaultProductIds||[]} onSave={product=>act({type:'shopping_default_save',...product},true)} onRemove={name=>act({type:'shopping_default_remove',name},true)} onAdd={items=>act({type:'shopping_import',items,skipExisting:true},true)}/>
      <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{const value=e.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}} maxLength={100} required placeholder="שם המוצר"/></label>
       <div className="shopping-form-pair"><label>קטגוריה<select value={category} onChange={e=>setCategory(e.target.value as ShoppingCategory)}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
       <button className="shopping-primary" type="submit" disabled={adding||!name.trim()}>{adding?<LoaderCircle className="spin" size={18}/>:<Plus size={18}/>} הוספה</button>
