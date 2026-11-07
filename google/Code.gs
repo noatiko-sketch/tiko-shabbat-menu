@@ -640,11 +640,15 @@ function editShopping(source, action, actor, now) {
         shoppingCheck(action.quantity === undefined || typeof action.quantity === 'string' && action.quantity.length <= 60, 'כמות ארוכה מדי — עד 60 תווים.');
         const item = s.items.find(i => i.productId === product.id);
         const quantity = action.quantity?.trim() ?? item?.quantity ?? '';
-        if (item)
+        if (item) {
+            // A bought item added again is a new request; pending duplicates keep their requester.
+            if (item.bought)
+                item.added_by = actor;
             Object.assign(item, { quantity, bought: false, updated_by: actor, updated_at: now });
+        }
         else {
             shoppingCheck(s.items.length < 500, 'אפשר להוסיף עד 500 מוצרים לרשימה.');
-            s.items.push({ productId: product.id, quantity, bought: false, updated_by: actor, updated_at: now });
+            s.items.push({ productId: product.id, quantity, bought: false, added_by: actor, updated_by: actor, updated_at: now });
         }
     }
     else if (action.type === 'shopping_toggle' || action.type === 'shopping_remove') {
