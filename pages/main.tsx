@@ -8,6 +8,8 @@ import '../app/globals.css';
 import './pages.css';
 
 function Connection({children}:{children:React.ReactNode}){
+ const [,setNoticeVersion]=useState(0);
+ useEffect(()=>{const update=()=>setNoticeVersion(value=>value+1);window.addEventListener('tiko-auth-notice',update);return()=>window.removeEventListener('tiko-auth-notice',update);},[]);
  const [state,setState]=useState<'loading'|'code'|'ready'>('loading'),[code,setCode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[settings,setSettings]=useState(false),[config,setConfig]=useState({requiresCode:true,passkeys:false}),[attempt,setAttempt]=useState(0);
  useEffect(()=>{
   let active=true;const client=googleTransport();setState('loading');setError('');

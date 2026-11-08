@@ -25,6 +25,8 @@ export class GoogleTransport{
  private sequence=0;
  private pending=new Map<string,Pending>();
  private readyPromise:Promise<{requiresCode:boolean;passkeys:boolean}>;
+ private authGeneration=0;
+ private rememberFlight:Promise<void>|null=null;
  private code='';
  private session='';
  private sessionId='';
@@ -59,7 +61,7 @@ export class GoogleTransport{
    const frame=document.createElement('iframe');this.frame=frame;frame.src=url.href;frame.hidden=true;frame.title='חיבור מאובטח למאגר המשפחתי';frame.referrerPolicy='no-referrer';document.body.appendChild(frame);
   });
  }
- dispose(){for(const cleanup of this.cleanups)cleanup();this.cleanups=[];for(const task of this.pending.values()){task.cleanup();task.reject(Error('החיבור הופעל מחדש.'));}this.pending.clear();this.frame?.remove?.();this.source=null;}
+ dispose(){this.authGeneration++;for(const cleanup of this.cleanups)cleanup();this.cleanups=[];for(const task of this.pending.values()){task.cleanup();task.reject(Error('החיבור הופעל מחדש.'));}this.pending.clear();this.frame?.remove?.();this.source=null;}
  ready(){return this.readyPromise;}
  private clearRemembered(force=false){try{const value=readRememberedSession(localStorage,this.storageKey);if(force||!value||value.token===this.session)localStorage.removeItem(this.storageKey);}catch{}this.remembered=false;}
  private acceptSession(result:any){
@@ -75,8 +77,22 @@ export class GoogleTransport{
   const renew=saved.expiresAt-Date.now()<30*86400000;
   const reply=await this.request({resource:'connect',...(renew?{remember:true,label:deviceLabel()}: {})},AbortSignal.timeout(AUTH_TIMEOUT_MS));if(reply.status===401)return false;if(reply.status!==200)throw Error('לא ניתן לבדוק את הכניסה השמורה. נסו להתחבר מחדש.');if(reply.body?.session)this.acceptSession(reply.body);return true;
  }
- async connect(code:string,remember=true){await this.ready();this.clearRemembered(true);this.session='';this.code=code;this.notice='';const reply=await this.request({resource:'connect',remember,label:deviceLabel()},AbortSignal.timeout(AUTH_TIMEOUT_MS));if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}if(remember&&reply.body?.session)this.acceptSession(reply.body);else if(remember)this.notice='נכנסת בהצלחה. שמירת הכניסה במכשיר אינה זמינה כרגע.';}
- async rememberThisDevice(remember:boolean){const result=await this.passkeyRequest('remember',{remember,label:deviceLabel()});this.acceptSession(result);return this.remembered;}
+ async connect(code:string,remember=true){
+  await this.ready();const generation=++this.authGeneration;this.clearRemembered(true);this.session='';this.code=code;this.notice='';
+  // Verify the password without acquiring Drive's write lock. Device persistence
+  // is automatic but must not hold the login screen behind a shared-file write.
+  const reply=await this.request({resource:'connect'},AbortSignal.timeout(AUTH_TIMEOUT_MS));
+  if(generation!==this.authGeneration)throw Error('הכניסה בוטלה. אפשר לנסות שוב.');
+  if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}
+  if(remember){
+   this.notice='שומרים את הכניסה במכשיר…';
+   this.rememberFlight=this.passkeyRequest('remember',{remember:true,label:deviceLabel()}).then(result=>{
+    if(generation!==this.authGeneration)return;this.acceptSession(result);window.dispatchEvent(new Event('tiko-auth-notice'));
+   }).catch(()=>{if(generation===this.authGeneration){this.notice='נכנסת בהצלחה, אך הכניסה במכשיר עדיין לא נשמרה. בכניסה הבאה ייתכן שיידרש הקוד.';window.dispatchEvent(new Event('tiko-auth-notice'));}});
+  }
+ }
+ waitForRemembered(){return this.rememberFlight||Promise.resolve();}
+ async rememberThisDevice(remember:boolean){const generation=++this.authGeneration;const result=await this.passkeyRequest('remember',{remember,label:deviceLabel()});if(generation!==this.authGeneration)return false;this.acceptSession(result);return this.remembered;}
  hasFamilyCode(){return !!this.code;}
  async passkeyRequest(operation:string,fields:Record<string,unknown>={},code?:string){
   const reply=await this.request({resource:'passkeys',operation,...fields},undefined,code);
@@ -89,7 +105,7 @@ export class GoogleTransport{
   const result=await this.passkeyRequest('login_finish',{challengeId:begin.challengeId,credential,remember,label:deviceLabel()});
   this.acceptSession(result);
  }
- async disconnect(){try{await this.passkeyRequest('logout');}finally{this.clearRemembered(true);this.code='';this.session='';this.sessionId='';}}
+ async disconnect(){this.authGeneration++;try{await this.passkeyRequest('logout');}finally{this.clearRemembered(true);this.code='';this.session='';this.sessionId='';}}
  async request(payload:Record<string,unknown>,signal?:AbortSignal,codeOverride?:string):Promise<Reply>{
   await this.ready();if(signal?.aborted)throw abortedRequest(signal);
   const id=String(++this.sequence);
