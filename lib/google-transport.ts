@@ -3,6 +3,12 @@ import {authenticatePasskey} from './passkeys-client.ts';
 type Reply={status:number;body:any};
 type Pending={resolve:(value:Reply)=>void;reject:(error:Error)=>void;cleanup:()=>void;authSession:string};
 const CHANNEL='tiko-google-v1';
+// Google can cold-start or wait for the shared Drive lock on mobile networks.
+// Keep the form responsive while allowing the authenticated reply to finish.
+const AUTH_TIMEOUT_MS=60000;
+function abortedRequest(signal:AbortSignal){
+ return signal.reason?.name==='TimeoutError'?signal.reason:new DOMException('הבקשה בוטלה. אפשר לנסות שוב.','AbortError');
+}
 export function trustedGoogleOrigin(origin:string){
  try{const url=new URL(origin);return url.protocol==='https:'&&(url.hostname==='script.googleusercontent.com'||url.hostname.endsWith('-script.googleusercontent.com')||url.hostname.endsWith('.script.googleusercontent.com'));}catch{return false;}
 }
@@ -34,7 +40,7 @@ export class GoogleTransport{
   window.addEventListener('storage',storageListener);this.cleanups.push(()=>window.removeEventListener('storage',storageListener));
   url.searchParams.set('pagesBridge','1');url.searchParams.set('parentOrigin',location.origin);url.searchParams.set('nonce',this.nonce);
   this.readyPromise=new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>reject(Error('החיבור לגוגל לא נטען. אפשר לנסות להתחבר מחדש.')),15000);
+   const timer=setTimeout(()=>reject(Error('החיבור לגוגל לא נטען. אפשר לנסות להתחבר מחדש.')),45000);
    this.cleanups.push(()=>{clearTimeout(timer);reject(Error('החיבור הופעל מחדש.'));});
    const messageListener=(event:MessageEvent)=>{
     const data=event.data;
@@ -67,9 +73,9 @@ export class GoogleTransport{
   let saved;try{saved=readRememberedSession(localStorage,this.storageKey);}catch{return false;}if(!saved)return false;
   this.code='';this.session=saved.token;this.sessionId=saved.sessionId;this.remembered=true;
   const renew=saved.expiresAt-Date.now()<30*86400000;
-  const reply=await this.request({resource:'connect',...(renew?{remember:true,label:deviceLabel()}: {})},AbortSignal.timeout(15000));if(reply.status===401)return false;if(reply.status!==200)throw Error('לא ניתן לבדוק את הכניסה השמורה. נסו להתחבר מחדש.');if(reply.body?.session)this.acceptSession(reply.body);return true;
+  const reply=await this.request({resource:'connect',...(renew?{remember:true,label:deviceLabel()}: {})},AbortSignal.timeout(AUTH_TIMEOUT_MS));if(reply.status===401)return false;if(reply.status!==200)throw Error('לא ניתן לבדוק את הכניסה השמורה. נסו להתחבר מחדש.');if(reply.body?.session)this.acceptSession(reply.body);return true;
  }
- async connect(code:string,remember=true){this.clearRemembered(true);this.session='';this.code=code;this.notice='';const reply=await this.request({resource:'connect',remember,label:deviceLabel()},AbortSignal.timeout(20000));if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}if(remember&&reply.body?.session)this.acceptSession(reply.body);else if(remember)this.notice='נכנסת בהצלחה. שמירת הכניסה במכשיר אינה זמינה כרגע.';}
+ async connect(code:string,remember=true){await this.ready();this.clearRemembered(true);this.session='';this.code=code;this.notice='';const reply=await this.request({resource:'connect',remember,label:deviceLabel()},AbortSignal.timeout(AUTH_TIMEOUT_MS));if(reply.status!==200){this.code='';throw Error(reply.body?.detail||'לא ניתן להתחבר.');}if(remember&&reply.body?.session)this.acceptSession(reply.body);else if(remember)this.notice='נכנסת בהצלחה. שמירת הכניסה במכשיר אינה זמינה כרגע.';}
  async rememberThisDevice(remember:boolean){const result=await this.passkeyRequest('remember',{remember,label:deviceLabel()});this.acceptSession(result);return this.remembered;}
  hasFamilyCode(){return !!this.code;}
  async passkeyRequest(operation:string,fields:Record<string,unknown>={},code?:string){
@@ -85,12 +91,12 @@ export class GoogleTransport{
  }
  async disconnect(){try{await this.passkeyRequest('logout');}finally{this.clearRemembered(true);this.code='';this.session='';this.sessionId='';}}
  async request(payload:Record<string,unknown>,signal?:AbortSignal,codeOverride?:string):Promise<Reply>{
-  await this.ready();if(signal?.aborted)throw new DOMException('Aborted','AbortError');
+  await this.ready();if(signal?.aborted)throw abortedRequest(signal);
   const id=String(++this.sequence);
   return new Promise((resolve,reject)=>{
    const cleanup=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);};
    const fail=(error:Error)=>{if(!this.pending.delete(id))return;cleanup();reject(error);};
-   const abort=()=>fail(new DOMException('Aborted','AbortError'));
+   const abort=()=>fail(abortedRequest(signal!));
    const timer=setTimeout(()=>fail(Error('השמירה ארכה יותר מדי זמן. יש לרענן לפני ניסיון נוסף.')),60000);
    this.pending.set(id,{resolve,reject,cleanup,authSession:codeOverride===undefined?this.session:''});signal?.addEventListener('abort',abort,{once:true});
    (this.source as Window).postMessage({channel:CHANNEL,nonce:this.nonce,kind:'request',id,payload,code:codeOverride===undefined?this.code:codeOverride,session:codeOverride===undefined?this.session:''},this.origin);

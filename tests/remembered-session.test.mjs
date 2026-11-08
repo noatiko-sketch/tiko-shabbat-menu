@@ -10,7 +10,7 @@ test('saved device sessions reject malformed and expired records and handle bloc
  for(const invalid of [{...valid,token:'wrong'},{...valid,expiresAt:now-1},{...valid,expiresAt:now+367*86400000}]){s.setItem(key,JSON.stringify(invalid));assert.equal(readRememberedSession(s,key,now),null);assert.equal(s.getItem(key),null);}
  assert.equal(readRememberedSession({getItem:()=>{throw Error('blocked');}},key),null);assert.equal(storeRememberedSession({setItem:()=>{throw Error('blocked');}},key,valid),false);
 });
-function environment(t,{blocked=false}={}){
+function environment(t,{blocked=false,replyDelay=0}={}){
  const s=storage(),requests=[],tokens=new Set();let serial=0;
  const previous=Object.fromEntries(['window','document','location','localStorage'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
  const win=new EventTarget();globalThis.window=win;globalThis.location={origin:'https://noatiko-sketch.github.io'};globalThis.localStorage=blocked?{...s,setItem:()=>{throw Error('blocked');}}:s;
@@ -21,7 +21,8 @@ function environment(t,{blocked=false}={}){
    if(payload.resource==='connect'&&!payload.remember){if(!(code==='family-code'||tokens.has(session)))status=401;}
    else if(payload.operation==='remember'||payload.resource==='connect'&&payload.remember){if(!(code==='family-code'||tokens.has(session)))status=401;else{tokens.delete(session);const next=String(++serial).padStart(43,'A');tokens.add(next);body={session:next,sessionId:'device-'+serial,expiresAt:Date.now()+(payload.remember?365*24:8)*3600000,remembered:payload.remember};}}
    else if(payload.operation==='logout'){tokens.delete(session);}
-   queueMicrotask(()=>send({...message,kind:'reply',status,body},source));
+   const reply=()=>send({...message,kind:'reply',status,body},source);
+   if(replyDelay)setTimeout(reply,replyDelay);else queueMicrotask(reply);
   }};queueMicrotask(()=>send({channel:'tiko-google-v1',nonce,kind:'ready',requiresCode:true,passkeys:true},source));
  }}};
  t.after(()=>{for(const [k,descriptor] of Object.entries(previous)){if(descriptor)Object.defineProperty(globalThis,k,descriptor);else delete globalThis[k];}});
@@ -57,4 +58,37 @@ test('disposing the old connection removes it without erasing a saved device tok
  const e=environment(t),client=e.create();await client.ready();await client.connect('family-code');
  const before=[...e.s.map];client.dispose();assert.deepEqual([...e.s.map],before);
  const fresh=e.create();await fresh.ready();assert.equal(await fresh.restoreRemembered(),true);
+});
+
+function timedEnvironment(t,replyDelay){
+ t.mock.timers.enable({apis:['setTimeout']});
+ // Node's native AbortSignal.timeout uses internal timers, so model browser
+ // timeout signals with the same clock as the bridge in these isolated tests.
+ t.mock.method(AbortSignal,'timeout',ms=>{const controller=new AbortController();setTimeout(()=>controller.abort(new DOMException('Timed out','TimeoutError')),ms);return controller.signal;});
+ return environment(t,{replyDelay});
+}
+test('a slow Google password reply beyond the former 20-second limit still signs in once',async t=>{
+ const e=timedEnvironment(t,25000),client=e.create();await client.ready();
+ let finished=false;const login=client.connect('family-code').then(()=>{finished=true;});
+ await Promise.resolve();await Promise.resolve();
+ t.mock.timers.tick(20001);await Promise.resolve();assert.equal(finished,false);
+ t.mock.timers.tick(4999);await login;
+ assert.equal(client.isRemembered(),true);assert.equal(e.requests.length,1);
+});
+test('a slow remembered-session check is not rejected after 15 seconds',async t=>{
+ const e=timedEnvironment(t,25000),first=e.create();await first.ready();
+ const login=first.connect('family-code');await Promise.resolve();await Promise.resolve();t.mock.timers.tick(25000);await login;
+ const second=e.create();await second.ready();const restored=second.restoreRemembered();
+ await Promise.resolve();t.mock.timers.tick(25000);assert.equal(await restored,true);
+});
+test('a missing Google reply preserves TimeoutError for the Hebrew UI and ignores late success',async t=>{
+ const e=timedEnvironment(t,70000),client=e.create();await client.ready();
+ const login=client.connect('family-code');const rejected=assert.rejects(login,{name:'TimeoutError'});
+ await Promise.resolve();await Promise.resolve();t.mock.timers.tick(60000);await rejected;
+ t.mock.timers.tick(10000);assert.equal(client.isRemembered(),false);assert.equal(e.s.map.size,0);
+});
+test('already timed-out requests retain their reason without sending a request',async t=>{
+ const e=environment(t),client=e.create();await client.ready();
+ const controller=new AbortController();controller.abort(new DOMException('Timed out','TimeoutError'));
+ await assert.rejects(client.request({resource:'connect'},controller.signal),{name:'TimeoutError'});assert.equal(e.requests.length,0);
 });
