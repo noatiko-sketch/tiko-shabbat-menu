@@ -2,7 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import Home from '../app/page';
 import {InstallApp,InstallInstructions} from '../components/family-tools';
-import {googleTransport,retryGoogleConnection} from '../lib/google-transport';
+import {googleTransport,retryGoogleConnection,directGoogleUrl} from '../lib/google-transport';
 import {PasskeySettings} from '../components/passkey-settings';
 import '../app/globals.css';
 import './pages.css';
@@ -26,6 +26,7 @@ function Connection({children}:{children:React.ReactNode}){
   {state==='loading'&&<p role="status">מתחברים למאגר המשפחתי…</p>}
   {state==='code'&&<form onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{await googleTransport().connect(code);setCode('');setState('ready');}catch(e){setError((e as Error).name==='TimeoutError'?'החיבור ארך יותר מדי זמן. אפשר לנסות שוב.':(e as Error).message);}finally{setBusy(false);}}}><label>קוד הכניסה המשפחתי<input name="password" type="password" autoComplete="current-password" value={code} onChange={e=>setCode(e.target.value)} disabled={busy} required/></label><button disabled={busy}>{busy?'מתחברים…':'כניסה'}</button></form>}
   {error&&<p role="alert">{error}</p>}
+  {state==='code'&&!document.querySelector('meta[name="tiko-native"]')&&<a className="direct-google-link" href={directGoogleUrl()}>פתיחה בחיבור ישיר</a>}
   {(error||state==='loading')&&<button type="button" disabled={busy} onClick={()=>{retryGoogleConnection();setAttempt(value=>value+1);}}>ניסיון חיבור מחדש</button>}
  </main>;
 }

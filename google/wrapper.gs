@@ -28,6 +28,12 @@ function authorize_(code,session){if(session){authorizePasskeySession_(session);
 function getClientConfig(){return {requiresCode:!!PropertiesService.getScriptProperties().getProperty('TIKO_FAMILY_CODE'),passkeys:passkeysAvailable_()};}
 function archiveCompletedWeekly_(){return locked_(function(){var record=loadRecord_(context_());if(JSON.stringify(record.state)!==record.before)save_(record.state,record.file);return {ready:true};});}
 function doGet(e){
+ if(e&&e.parameter&&e.parameter.mobile==='1'){
+  var mobile=HtmlService.createTemplateFromFile('Mobile');
+  mobile.nativeConfig=JSON.stringify({requiresCode:getClientConfig().requiresCode}).replace(/</g,'\\u003c');
+  return mobile.evaluate().setTitle('טיקו — אוכל לשבת').addMetaTag('viewport','width=device-width, initial-scale=1');
+ }
+
  if(e&&e.parameter&&e.parameter.pagesBridge==='1'){
   var parent=e.parameter.parentOrigin,nonce=e.parameter.nonce;
   var allowed=PropertiesService.getScriptProperties().getProperty('TIKO_PAGES_ORIGIN')||'https://noatiko-sketch.github.io';

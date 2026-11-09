@@ -42,7 +42,7 @@ jobs:
         env:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
-          if [ -n "$BEFORE_SHA" ] && git cat-file -e "$BEFORE_SHA" 2>/dev/null && git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- google/Code.gs google/Bridge.html google/deployment.json; then
+          if [ -n "$BEFORE_SHA" ] && git cat-file -e "$BEFORE_SHA" 2>/dev/null && git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- google/Code.gs google/Bridge.html google/deployment.json app components lib pages public scripts/build-pages.mjs scripts/deploy-google.mjs vite.pages.config.ts package.json pnpm-lock.yaml; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"

@@ -22,6 +22,7 @@ export class GoogleTransport{
  private nonce=crypto.randomUUID();
  private source:MessageEventSource|null=null;
  private origin='';
+ private nativeRun:any=null;
  private sequence=0;
  private pending=new Map<string,Pending>();
  private readyPromise:Promise<{requiresCode:boolean;passkeys:boolean}>;
@@ -40,6 +41,12 @@ export class GoogleTransport{
   this.storageKey='tiko-remembered-session-v1:'+url.pathname;
   const storageListener=(event:StorageEvent)=>{if(event.key===this.storageKey&&this.remembered){this.session='';this.code='';this.remembered=false;window.dispatchEvent(new Event('tiko-auth-expired'));}};
   window.addEventListener('storage',storageListener);this.cleanups.push(()=>window.removeEventListener('storage',storageListener));
+  const native=(window as any).TIKO_NATIVE_CONFIG;
+  if(document.querySelector('meta[name="tiko-native"]')&&native){
+   this.nativeRun=(window as any).google?.script?.run;
+   this.readyPromise=this.nativeRun?Promise.resolve({requiresCode:!!native.requiresCode,passkeys:false}):Promise.reject(Error('החיבור הישיר לגוגל לא נטען. יש לטעון מחדש.'));
+   return;
+  }
   url.searchParams.set('pagesBridge','1');url.searchParams.set('parentOrigin',location.origin);url.searchParams.set('nonce',this.nonce);
   this.readyPromise=new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>reject(Error('החיבור לגוגל לא נטען. אפשר לנסות להתחבר מחדש.')),45000);
@@ -55,11 +62,17 @@ export class GoogleTransport{
     if(event.source!==this.source||event.origin!==this.origin||data.kind!=='reply')return;
     const pending=this.pending.get(data.id);if(!pending)return;
     if(!Number.isInteger(data.status)||data.status<200||data.status>599)return;
-    this.pending.delete(data.id);pending.cleanup();if(data.status===401&&pending.authSession&&pending.authSession===this.session){this.clearRemembered();this.session='';this.code='';window.dispatchEvent(new Event('tiko-auth-expired'));}pending.resolve({status:data.status,body:data.body});
+    this.finishReply(data.id,{status:data.status,body:data.body});
    };
    window.addEventListener('message',messageListener);this.cleanups.push(()=>window.removeEventListener('message',messageListener));
    const frame=document.createElement('iframe');this.frame=frame;frame.src=url.href;frame.hidden=true;frame.title='חיבור מאובטח למאגר המשפחתי';frame.referrerPolicy='no-referrer';document.body.appendChild(frame);
   });
+ }
+ private finishReply(id:string,reply:Reply){
+  const pending=this.pending.get(id);if(!pending)return;
+  this.pending.delete(id);pending.cleanup();
+  if(reply.status===401&&pending.authSession&&pending.authSession===this.session){this.clearRemembered();this.session='';this.code='';window.dispatchEvent(new Event('tiko-auth-expired'));}
+  pending.resolve(reply);
  }
  dispose(){this.authGeneration++;for(const cleanup of this.cleanups)cleanup();this.cleanups=[];for(const task of this.pending.values()){task.cleanup();task.reject(Error('החיבור הופעל מחדש.'));}this.pending.clear();this.frame?.remove?.();this.source=null;}
  ready(){return this.readyPromise;}
@@ -115,10 +128,15 @@ export class GoogleTransport{
    const abort=()=>fail(abortedRequest(signal!));
    const timer=setTimeout(()=>fail(Error('השמירה ארכה יותר מדי זמן. יש לרענן לפני ניסיון נוסף.')),60000);
    this.pending.set(id,{resolve,reject,cleanup,authSession:codeOverride===undefined?this.session:''});signal?.addEventListener('abort',abort,{once:true});
-   (this.source as Window).postMessage({channel:CHANNEL,nonce:this.nonce,kind:'request',id,payload,code:codeOverride===undefined?this.code:codeOverride,session:codeOverride===undefined?this.session:''},this.origin);
+   const code=codeOverride===undefined?this.code:codeOverride,session=codeOverride===undefined?this.session:'';
+   if(this.nativeRun){
+    this.nativeRun.withSuccessHandler((reply:Reply)=>{if(reply&&Number.isInteger(reply.status)&&reply.status>=200&&reply.status<=599)this.finishReply(id,reply);else fail(Error('התקבלה תשובה לא תקינה מגוגל.'));}).withFailureHandler(()=>fail(Error('החיבור הישיר לגוגל נכשל. אפשר לנסות שוב.'))).pagesRequest(payload,code,session);
+   }else (this.source as Window).postMessage({channel:CHANNEL,nonce:this.nonce,kind:'request',id,payload,code,session},this.origin);
   });
  }
 }
+
+export function directGoogleUrl(){const deployment=document.querySelector('meta[name="tiko-google"]')?.getAttribute('content');if(!deployment)return '';const url=googleDeploymentUrl(deployment);url.searchParams.set('mobile','1');return url.href;}
 
 let shared:GoogleTransport|undefined;
 export function retryGoogleConnection(){shared?.dispose();shared=undefined;return googleTransport();}
