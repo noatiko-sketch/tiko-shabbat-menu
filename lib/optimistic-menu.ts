@@ -1,3 +1,4 @@
+import {categoryLabel,duplicateCategory} from './custom-categories.ts';
 import {recipeUrl} from './recipe-url.ts';
 import {editMenu,type Action,type Dish,type Menu} from './menu-model.ts';
 import {inferCategory,inferDiet,mealAllows} from './family.ts';
@@ -11,7 +12,7 @@ export function projectAction<S extends MutationSnapshot>(source:S,action:Action
  if(catalogActions.includes(a.type)){
   if(a.type==='catalog_save'){const dish=resolve(a.dish);if(a.oldName&&norm(a.oldName)!==norm(dish.name)){if(s.catalog?.some(d=>norm(d.name)===norm(dish.name)))throw Error('מנה בשם הזה כבר קיימת.');s.catalog=s.catalog?.filter(d=>norm(d.name)!==norm(a.oldName!));}put(dish);if(s.current&&s.current.saturday>=(s.upcoming_saturday||a.saturday)){let changed=false;const menu=structuredClone(s.current);for(const d of [...menu.friday.dishes,...menu.lunch.dishes])if(d&&norm(d.name)===norm(dish.name)&&dish.recipe_url!==undefined&&(d.recipe_url||'')!==dish.recipe_url){d.recipe_url=dish.recipe_url;changed=true;}if(changed){menu.approved=false;delete menu.approved_at;s.current=menu;s.revision=(s.revision||0)+1;}}}
   if(a.type==='catalog_remove')s.catalog=s.catalog?.filter(d=>norm(d.name)!==norm(a.oldName||''));
-  if(a.type==='category_save'){if(!a.label?.trim())throw Error('יש לכתוב שם קטגוריה.');s.categories={...s.categories,[a.id!]:a.label.trim()};}
+  if(a.type==='category_save'){if(!a.label?.trim())throw Error('יש לכתוב שם קטגוריה.');if(duplicateCategory(s.categories||{},a.label,a.id))throw Error('הקטגוריה כבר קיימת.');s.categories={...s.categories,[a.id!]:categoryLabel(a.label)};}
   if(a.type==='category_remove'){s.categories={...s.categories};delete s.categories[a.id!];s.catalog=s.catalog?.map(d=>d.category===a.id?{...d,category:'extra'}:d);}
   s.catalog_revision=(s.catalog_revision||0)+1;return s;
  }

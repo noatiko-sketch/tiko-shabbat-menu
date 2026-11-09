@@ -44,3 +44,8 @@ test('the invisible Google bridge only processes its configured top-level sender
  listener({source:top,origin:'https://attacker.test',data});listener({source:{},origin:config.parentOrigin,data});listener({source:top,origin:config.parentOrigin,data:{...data,nonce:'wrong'}});assert.equal(calls.length,0);
  listener({source:top,origin:config.parentOrigin,data});assert.equal(calls.length,1);assert.equal(sent[1].value.kind,'reply');assert.equal(JSON.stringify(sent).includes('test-code'),false);
 });
+test('Pages accepts category creation with the authenticated actor',()=>{
+ const s=server();s.shoppingRequest_=action=>action;
+ const result=s.pagesRequest({resource:'shopping',method:'POST',actor:'אבא',action:{type:'shopping_category_add',id:'custom-example',label:'חדשה',actor:'זר'}},'test-family-code');
+ assert.equal(result.status,200);assert.equal(result.body.type,'shopping_category_add');assert.equal(result.body.actor,'אבא');
+});

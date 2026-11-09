@@ -1,12 +1,13 @@
 'use client';
+import {ShoppingCategorySelect,type CreateCategory} from '@/components/category-creator';
 import {apiFetch} from '@/lib/google-transport';
 import {useEffect,useRef,useState,type ChangeEvent} from 'react';
 import {Camera,Check,ImagePlus,LoaderCircle,Plus,Trash2,X} from 'lucide-react';
-import {shoppingCategories,type ShoppingCategory,type ShoppingImportItem} from '@/lib/shopping';
+import {shoppingCategories as defaultCategories,type ShoppingCategory,type ShoppingImportItem} from '@/lib/shopping';
 import {confirmedShoppingItems,parseShoppingScan,reviewShoppingScan,type ReviewShoppingItem} from '@/lib/shopping-scan';
 import {prepareShoppingPhoto} from '@/lib/shopping-photo';
 
-export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:boolean;onImport:(items:ShoppingImportItem[])=>Promise<number|false|null>}){
+export function ShoppingPhotoImport({categories=defaultCategories,onCreateCategory,person,busy,onImport}:{categories?:Record<string,string>;onCreateCategory?:CreateCategory;person:string;busy:boolean;onImport:(items:ShoppingImportItem[])=>Promise<number|false|null>}){
  const [image,setImage]=useState(''),[rows,setRows]=useState<ReviewShoppingItem[]|null>(null),[warning,setWarning]=useState(''),[error,setError]=useState(''),[success,setSuccess]=useState('');
  const [preparing,setPreparing]=useState(false),[scanning,setScanning]=useState(false),[importing,setImporting]=useState(false);
  const camera=useRef<HTMLInputElement>(null),gallery=useRef<HTMLInputElement>(null),version=useRef(0),mounted=useRef(true),flight=useRef<AbortController|null>(null),manualId=useRef(0);
@@ -35,7 +36,7 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
  const confirm=async()=>{
   if(importing||busy)return;
   try{
-   const items=confirmedShoppingItems(rows||[]);setError('');setImporting(true);
+   const items=confirmedShoppingItems(rows||[],categories);setError('');setImporting(true);
    const ok=await onImport(items);
    if(!mounted.current)return;
    if(typeof ok==='number'){cancel();setSuccess(`המוצרים שאישרת נוספו לרשימה (${ok}).`);}
@@ -64,7 +65,7 @@ export function ShoppingPhotoImport({person,busy,onImport}:{person:string;busy:b
     <ul className="shopping-scan-rows">{rows.map((row,index)=><li key={row.id} className={row.selected?'scan-selected':''}>
      <div className="shopping-scan-row-top"><label className="shopping-scan-select"><input type="checkbox" checked={row.selected} disabled={importing} onChange={e=>edit(row.id,{selected:e.target.checked})}/> הוספה לרשימה</label><div>{row.mark!=='none'&&<span className="shopping-scan-mark">{row.mark==='checked'?'✓ כבר נקנה':'מחוק בצילום'}</span>}{row.uncertain&&<span className="shopping-scan-uncertain">דורש בדיקה</span>}</div><button type="button" className="shopping-remove" disabled={importing} aria-label={`מחיקת שורה ${index+1} מהפענוח`} onClick={()=>setRows(previous=>previous!.filter(item=>item.id!==row.id))}><Trash2 size={16}/></button></div>
      <label className="shopping-scan-name">שם המוצר<input aria-label={`שם המוצר בשורה ${index+1}`} value={row.name} placeholder="יש להשלים את שם המוצר" maxLength={100} disabled={importing} onChange={e=>edit(row.id,{name:e.target.value})}/></label>
-     <div className="shopping-form-pair"><label>כמות<input aria-label={`כמות בשורה ${index+1}`} value={row.quantity} maxLength={60} disabled={importing} onChange={e=>edit(row.id,{quantity:e.target.value})}/></label><label>קטגוריה<select aria-label={`קטגוריה בשורה ${index+1}`} value={row.category} disabled={importing} onChange={e=>edit(row.id,{category:e.target.value as ShoppingCategory})}>{Object.entries(shoppingCategories).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label></div>
+     <div className="shopping-form-pair"><label>כמות<input aria-label={`כמות בשורה ${index+1}`} value={row.quantity} maxLength={60} disabled={importing} onChange={e=>edit(row.id,{quantity:e.target.value})}/></label><label>קטגוריה<ShoppingCategorySelect label={`קטגוריה בשורה ${index+1}`} value={row.category} onChange={category=>edit(row.id,{category})} categories={categories} onCreate={onCreateCategory} disabled={importing}/></label></div>
      {row.note&&<p className="shopping-scan-note">{row.note}</p>}
     </li>)}</ul>
     <button type="button" className="shopping-scan-add" disabled={importing||rows.length>=80} onClick={()=>setRows(previous=>[...previous!,{id:'manual-row-'+(++manualId.current),name:'',quantity:'',category:'general',mark:'none',uncertain:false,note:'',selected:true}])}><Plus size={17}/> הוספת שורה</button>

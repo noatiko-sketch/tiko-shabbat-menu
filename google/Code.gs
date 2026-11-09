@@ -64,7 +64,7 @@ function pagesRequest(request,code,session){
   }
   if(request.resource==='shopping'){
    if(request.method==='GET')action.type='shopping_snapshot';
-   if(!['shopping_snapshot','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import','shopping_default_save','shopping_default_remove'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
+   if(!['shopping_snapshot','shopping_category_add','shopping_add','shopping_toggle','shopping_remove','shopping_clear_bought','shopping_recategorize','shopping_import','shopping_default_save','shopping_default_remove'].includes(action.type))throw {status:400,message:'פעולת קניות לא מוכרת.'};
    return {status:200,body:shoppingRequest_(action)};
   }
   if(request.resource!=='menu')throw {status:400,message:'פעולה לא מוכרת.'};
@@ -3213,6 +3213,9 @@ var TikoPasskeys = (() => {
 })();
 
 var TikoDrive=(function(){
+const categoryLabel = (value) => value.normalize('NFKC').replace(/\s+/g, ' ').trim();
+const categoryKey = (value) => categoryLabel(value).toLocaleLowerCase('he');
+function duplicateCategory(categories, label, except) { return Object.keys(categories).find(id => id !== except && categoryKey(categories[id]) === categoryKey(label)); }
 // Shared with Apps Script: no browser/Node URL API required.
 function recipeUrl(value) {
     if (value === undefined || value === null || value === '')
@@ -3593,8 +3596,9 @@ function driveAction(original, action, actor, ctx) {
             removeDish(s, a.oldName);
         }
         if (a.type === 'category_save') {
-            const id = String(a.id || '').trim(), label = String(a.label || '').trim();
+            const id = String(a.id || '').trim(), label = categoryLabel(String(a.label || ''));
             check(/^[a-z][a-z0-9_-]{0,49}$/.test(id) && label && label.length <= 70, 'קטגוריה לא תקינה.');
+            check(!duplicateCategory(s.food_categories, label, id), 'הקטגוריה כבר קיימת.');
             s.food_categories[id] = label;
         }
         if (a.type === 'category_remove') {
@@ -3737,6 +3741,7 @@ const shoppingCategories = {
     produce: 'ירקות ופירות', cleaning: 'מוצרי ניקוי', legumes: 'קטניות', cereal: 'דגני בוקר',
     dairy: 'מוצרי חלב', fresh: 'דגים, בשר ועוף טריים', water: 'מים', frozen: 'קפואים', canned: 'שימורים', general: 'כללי',
 };
+const allShoppingCategories = (state) => ({ ...shoppingCategories, ...state?.categories });
 class ShoppingError extends Error {
     constructor(message, status = 400) { super(message); this.status = status; }
 }
@@ -3766,7 +3771,15 @@ function editShopping(source, action, actor, now) {
         return next;
     }
     const s = structuredClone(source);
-    if (action.type === 'shopping_default_save' || action.type === 'shopping_default_remove') {
+    if (action.type === 'shopping_category_add') {
+        const id = String(action.id || ''), label = categoryLabel(String(action.label || ''));
+        shoppingCheck(/^custom-[a-z0-9-]{1,43}$/.test(id) && label.length > 0 && label.length <= 70, 'קטגוריה לא תקינה.');
+        const categories = allShoppingCategories(s);
+        shoppingCheck(!Object.prototype.hasOwnProperty.call(categories, id), 'הקטגוריה כבר קיימת.');
+        shoppingCheck(!duplicateCategory(categories, label), 'הקטגוריה כבר קיימת.');
+        s.categories = { ...s.categories, [id]: label };
+    }
+    else if (action.type === 'shopping_default_save' || action.type === 'shopping_default_remove') {
         shoppingCheck(typeof action.name === 'string', 'יש לכתוב שם מוצר.');
         const name = action.name.normalize('NFKC').replace(/\s+/g, ' ').trim();
         shoppingCheck(name.length > 0 && name.length <= 100, 'יש לכתוב שם מוצר עד 100 תווים.');
@@ -3778,7 +3791,7 @@ function editShopping(source, action, actor, now) {
             s.defaultProductIds = s.defaultProductIds.filter(id => !ids.has(id));
         }
         else {
-            shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories, action.category || ''), 'יש לבחור קטגוריה.');
+            shoppingCheck(Object.prototype.hasOwnProperty.call(allShoppingCategories(s), action.category || ''), 'יש לבחור קטגוריה.');
             let product = s.products.find(p => shoppingName(p.name) === key);
             if (product)
                 product.category = action.category;
@@ -3800,7 +3813,7 @@ function editShopping(source, action, actor, now) {
             shoppingCheck(typeof action.name === 'string', 'יש לכתוב שם מוצר.');
             const name = action.name.replace(/\s+/g, ' ').trim();
             shoppingCheck(name.length > 0 && name.length <= 100, 'יש לכתוב שם מוצר עד 100 תווים.');
-            shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories, action.category || ''), 'יש לבחור קטגוריה.');
+            shoppingCheck(Object.prototype.hasOwnProperty.call(allShoppingCategories(s), action.category || ''), 'יש לבחור קטגוריה.');
             product = s.products.find(p => shoppingName(p.name) === shoppingName(name));
             if (!product) {
                 shoppingCheck(s.products.length < 2000, 'המאגר מכיל כבר 2,000 מוצרים.');
@@ -3840,7 +3853,7 @@ function editShopping(source, action, actor, now) {
     else if (action.type === 'shopping_recategorize') {
         const product = s.products.find(p => p.id === action.productId);
         shoppingCheck(product, 'המוצר אינו במאגר.');
-        shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories, action.category || ''), 'יש לבחור קטגוריה.');
+        shoppingCheck(Object.prototype.hasOwnProperty.call(allShoppingCategories(s), action.category || ''), 'יש לבחור קטגוריה.');
         product.category = action.category;
     }
     else
@@ -3924,7 +3937,7 @@ function parseShoppingScan(value) {
 function reviewShoppingScan(scan) {
     return scan.items.map((item, index) => ({ ...item, id: 'scan-row-' + index, selected: item.mark === 'none' && !item.uncertain && !!item.name }));
 }
-function confirmedShoppingItems(rows) {
+function confirmedShoppingItems(rows, categories = shoppingCategories) {
     const selected = rows.filter(row => row.selected);
     if (!selected.length)
         throw Error('יש לבחור לפחות מוצר אחד להוספה.');
@@ -3934,7 +3947,7 @@ function confirmedShoppingItems(rows) {
         const name = row.name.trim(), quantity = row.quantity.trim();
         if (!name || name.length > 100)
             throw Error('יש להשלים שם תקין לכל מוצר שנבחר.');
-        if (quantity.length > 60 || !Object.prototype.hasOwnProperty.call(shoppingCategories, row.category))
+        if (quantity.length > 60 || !Object.prototype.hasOwnProperty.call(categories, row.category))
             throw Error('יש לבדוק את הכמות והקטגוריה של המוצרים שנבחרו.');
         return { name, quantity, category: row.category };
     });

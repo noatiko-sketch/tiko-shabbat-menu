@@ -1,3 +1,4 @@
+import {categoryLabel,duplicateCategory} from './custom-categories.ts';
 import {recipeUrl} from './recipe-url.ts';
 import {family,defaultCategories,inferCategory,inferDiet,mealAllows} from './family.ts';
 import {categories,editMenu,emptyMenu,validSaturday,addDays,type Menu,type Dish,type Action} from './menu-model.ts';
@@ -98,7 +99,7 @@ export function driveAction(original:State,action:Action,actor:string,ctx:Contex
  check(a.revision===revision(s,day),'התפריט השתנה. יש לרענן.',409);
  if(a.type==='catalog_save'){const dish=resolve(s,a.dish!);if(a.oldName&&norm(a.oldName)!==norm(dish.name)){check(!s.dish_catalog.some((d:Dish)=>norm(d.name)===norm(dish.name)),'מנה בשם הזה כבר קיימת.');removeDish(s,a.oldName);}putDish(s,dish,actor,ctx.now);syncRecipe(s,dish,ctx);}
  if(a.type==='catalog_remove'){check(typeof a.oldName==='string'&&s.dish_catalog.some((d:Dish)=>norm(d.name)===norm(a.oldName!)),'המנה לא נמצאה.');removeDish(s,a.oldName!);}
- if(a.type==='category_save'){const id=String(a.id||'').trim(),label=String(a.label||'').trim();check(/^[a-z][a-z0-9_-]{0,49}$/.test(id)&&label&&label.length<=70,'קטגוריה לא תקינה.');s.food_categories[id]=label;}
+ if(a.type==='category_save'){const id=String(a.id||'').trim(),label=categoryLabel(String(a.label||''));check(/^[a-z][a-z0-9_-]{0,49}$/.test(id)&&label&&label.length<=70,'קטגוריה לא תקינה.');check(!duplicateCategory(s.food_categories,label,id),'הקטגוריה כבר קיימת.');s.food_categories[id]=label;}
  if(a.type==='category_remove'){check(a.id&&a.id!=='extra'&&s.food_categories[a.id],'אי אפשר להסיר קטגוריה זו.');delete s.food_categories[a.id!];for(const d of s.dish_catalog)if(d.category===a.id)d.category='extra';}
  bumpCatalog();return complete();
  }

@@ -1,8 +1,9 @@
 'use client';
+import {ShoppingCategorySelect} from '@/components/category-creator';
 import {apiFetch} from '@/lib/google-transport';
 import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {ListPlus,Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
-import {shoppingCategories,shoppingName,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
+import {allShoppingCategories,shoppingName,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
 import {confirmShoppingAddition} from '@/lib/shopping-addition';
 import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 import {ShoppingDefaults} from '@/components/shopping-defaults';
@@ -59,10 +60,12 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   const ok=await act({type:'shopping_add',name,category,quantity,rememberCategory:true,skipExisting:true});
   if(mounted.current){if(ok){setName(value=>value===submitted?'':value);setQuantity(value=>value===submittedQuantity?'':value);}setAdding(false);}
  };
+ const shoppingCategories=allShoppingCategories(snapshot?.shopping);
+ const createCategory=(id:string,label:string)=>act({type:'shopping_category_add',id,label});
  const data=snapshot?.shopping,products=data?.products||[],items=data?.items||[];
  const remaining=items.filter(i=>!i.bought),bought=items.filter(i=>i.bought),byId=new Map(products.map(p=>[p.id,p]));
  const catalog=products.filter(p=>(!filter||p.category===filter)&&p.name.includes(search.trim())).sort((a,b)=>a.name.localeCompare(b.name,'he'));
- const categoryEditor=(product:ShoppingProduct,scope='active')=>moving===`${scope}:${product.id}`&&<div className="shopping-category-editor"><label>קטגוריה של {product.name}<select aria-label={`קטגוריה של ${product.name}`} value={product.category} onChange={e=>{setMoving(null);void act({type:'shopping_recategorize',productId:product.id,category:e.target.value});}}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label><button type="button" onClick={()=>setMoving(null)}>סגירה</button></div>;
+ const categoryEditor=(product:ShoppingProduct,scope='active')=>moving===`${scope}:${product.id}`&&<div className="shopping-category-editor"><label>קטגוריה של {product.name}<ShoppingCategorySelect label={`קטגוריה של ${product.name}`} value={product.category} categories={shoppingCategories} onCreate={createCategory} onChange={category=>{setMoving(null);void act({type:'shopping_recategorize',productId:product.id,category});}}/></label><button type="button" onClick={()=>setMoving(null)}>סגירה</button></div>;
  const moveButton=(product:ShoppingProduct,scope='active')=><button className="shopping-remove" type="button" aria-label={`שינוי קטגוריה של ${product.name}`} aria-expanded={moving===`${scope}:${product.id}`} onClick={()=>setMoving(moving===`${scope}:${product.id}`?null:`${scope}:${product.id}`)}><Pencil size={16}/></button>;
  const defaultButton=(product:ShoppingProduct)=>{const selected=data?.defaultProductIds?.includes(product.id)||false;return <button className={`shopping-remove shopping-default-pin ${selected?'is-pinned':''}`} type="button" aria-pressed={selected} aria-label={`${selected?'הסרת':'הוספת'} ${product.name} ${selected?'מהרשימה':'לרשימה'} הקבועה`} title={selected?'הסרה מהרשימה הקבועה':'הוספה לרשימה הקבועה'} onClick={()=>void act({type:selected?'shopping_default_remove':'shopping_default_save',name:product.name,category:product.category},true)}><ListPlus size={19}/></button>;};
  const renderItem=(product:ShoppingProduct,item:typeof items[number])=><li className={`shopping-row ${item.bought?'is-bought':''}`} key={product.id}>
@@ -74,7 +77,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   {!person?<p className="shopping-empty">יש לבחור בן משפחה למעלה כדי לפתוח את רשימת הקניות.</p>:<>
    {error&&<div className="shopping-error" role="alert"><p>{error}</p><button type="button" disabled={saving} onClick={()=>{setError('');void refresh();}}>טעינה מחדש</button></div>}
    {loading&&!snapshot?<p className="shopping-loading" role="status"><LoaderCircle className="spin" size={20}/>טוענים את הרשימה המשפחתית…</p>:!snapshot?<p className="shopping-empty">הרשימה אינה זמינה כרגע. אפשר לנסות שוב באמצעות טעינה מחדש.</p>:<>
-    <ShoppingPhotoImport person={person} busy={saving} onImport={async items=>{
+    <ShoppingPhotoImport categories={shoppingCategories} onCreateCategory={createCategory} person={person} busy={saving} onImport={async items=>{
      if(!snapshotRef.current)return false;
      const confirmed=confirmShoppingAddition(snapshotRef.current.shopping,{type:'shopping_import',items},message=>window.confirm(message));
      if(!confirmed)return null;
@@ -91,9 +94,9 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
      </details>}
     </div>{showAdd&&<aside id="shopping-add-panel" className="shopping-add-panel" aria-label="הוספת מוצרים">
      <h2 className="sr-only">הוספת מוצרים</h2>
-     <ShoppingDefaults pending={saving} saveError={error} products={products} defaultProductIds={data?.defaultProductIds||[]} onSave={product=>act({type:'shopping_default_save',...product},true)} onRemove={name=>act({type:'shopping_default_remove',name},true)} onAdd={items=>act({type:'shopping_import',items,skipExisting:true},true)}/>
+     <ShoppingDefaults categories={shoppingCategories} onCreateCategory={createCategory} pending={saving} saveError={error} products={products} defaultProductIds={data?.defaultProductIds||[]} onSave={product=>act({type:'shopping_default_save',...product},true)} onRemove={name=>act({type:'shopping_default_remove',name},true)} onAdd={items=>act({type:'shopping_import',items,skipExisting:true},true)}/>
      <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{const value=e.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}} maxLength={100} required placeholder="שם המוצר"/></label>
-      <div className="shopping-form-pair"><label>קטגוריה<select value={category} onChange={e=>setCategory(e.target.value as ShoppingCategory)}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
+      <div className="shopping-form-pair"><label>קטגוריה<ShoppingCategorySelect value={category} onChange={setCategory} categories={shoppingCategories} onCreate={createCategory} disabled={saving}/></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
       <button className="shopping-primary" type="submit" disabled={adding||!name.trim()}>{adding?<LoaderCircle className="spin" size={18}/>:<Plus size={18}/>} הוספה</button>
      </form>
      <details className="shopping-catalog"><summary>מהמאגר <span>{products.length}</span><ChevronDown size={17}/></summary>

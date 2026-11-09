@@ -16,14 +16,14 @@ export function parseShoppingScan(value:unknown):ShoppingScan {
 export function reviewShoppingScan(scan:ShoppingScan):ReviewShoppingItem[]{
  return scan.items.map((item,index)=>({...item,id:'scan-row-'+index,selected:item.mark==='none'&&!item.uncertain&&!!item.name}));
 }
-export function confirmedShoppingItems(rows:ReviewShoppingItem[]):ShoppingImportItem[]{
+export function confirmedShoppingItems(rows:ReviewShoppingItem[],categories:Record<string,string>=shoppingCategories):ShoppingImportItem[]{
  const selected=rows.filter(row=>row.selected);
  if(!selected.length)throw Error('יש לבחור לפחות מוצר אחד להוספה.');
  if(selected.length>80)throw Error('אפשר להוסיף עד 80 מוצרים בכל פעם.');
  return selected.map(row=>{
   const name=row.name.trim(),quantity=row.quantity.trim();
   if(!name||name.length>100)throw Error('יש להשלים שם תקין לכל מוצר שנבחר.');
-  if(quantity.length>60||!Object.prototype.hasOwnProperty.call(shoppingCategories,row.category))throw Error('יש לבדוק את הכמות והקטגוריה של המוצרים שנבחרו.');
+  if(quantity.length>60||!Object.prototype.hasOwnProperty.call(categories,row.category))throw Error('יש לבדוק את הכמות והקטגוריה של המוצרים שנבחרו.');
   return {name,quantity,category:row.category};
  });
 }
