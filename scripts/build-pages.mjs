@@ -15,3 +15,14 @@ for(const dir of ['install','install/help']){mkdirSync('dist-pages/'+dir,{recurs
 writeFileSync('dist-pages/.nojekyll','');
 writeFileSync('dist-pages/sw.js',`const CACHE='tiko-pages-v1';const BASE=${JSON.stringify(base)};self.addEventListener('install',e=>{self.skipWaiting();});self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>{if(e.request.mode==='navigate')e.respondWith(fetch(e.request).catch(()=>caches.match(BASE+'offline.html').then(r=>r||new Response('יש להתחבר לאינטרנט',{headers:{'content-type':'text/plain;charset=utf-8'}}))));});`);
 console.log('Built GitHub Pages site. No server credentials are included.');
+
+// The same frontend can run in Google's own HTML Service on phones where the
+// cross-site embedded bridge fails. No password or server token is embedded.
+const pagesOrigin=config.pagesOrigin;
+if(!/^https:\/\/[a-z0-9.-]+$/.test(pagesOrigin))throw Error('Invalid Pages origin.');
+const assetBase=pagesOrigin+base;
+let mobile=readFileSync('dist-pages/index.html','utf8');
+mobile=mobile.replace(/(src|href)="(\/tiko-shabbat-menu\/[^"]*)"/g,(_,attribute,url)=>`${attribute}="${pagesOrigin}${url}"`);
+mobile=mobile.replace('<meta name="tiko-base" content="'+base+'">','<meta name="tiko-base" content="'+assetBase+'">');
+mobile=mobile.replace('</head>','<meta name="tiko-native" content="1"><script>window.TIKO_NATIVE_CONFIG=<?!= nativeConfig ?>;</script></head>');
+mkdirSync('work',{recursive:true});writeFileSync('work/google-Mobile.html',mobile);

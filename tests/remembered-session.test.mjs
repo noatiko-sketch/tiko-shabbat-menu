@@ -15,7 +15,7 @@ function environment(t,{blocked=false,replyDelay=0,holdRemember=false}={}){
  const previous=Object.fromEntries(['window','document','location','localStorage'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
  const win=new EventTarget();globalThis.window=win;globalThis.location={origin:'https://noatiko-sketch.github.io'};globalThis.localStorage=blocked?{...s,setItem:()=>{throw Error('blocked');}}:s;
  const send=(data,source)=>{const event=new Event('message');Object.assign(event,{origin:'https://script.googleusercontent.com',data,source});win.dispatchEvent(event);};
- globalThis.document={createElement:()=>({}),body:{appendChild:frame=>{
+ globalThis.document={querySelector:()=>null,createElement:()=>({}),body:{appendChild:frame=>{
   const nonce=new URL(frame.src).searchParams.get('nonce');
   const source={postMessage:message=>{requests.push(message);const {payload,code,session}=message;let body={connected:true},status=200;
    if(payload.resource==='connect'&&!payload.remember){if(!(code==='family-code'||tokens.has(session)))status=401;}

@@ -5,6 +5,7 @@ Read README.md first. Keep changes small and preserve the current Hebrew RTL des
 ## One application and one production database
 - Source of truth: https://github.com/noatiko-sketch/tiko-shabbat-menu, latest main. Work here on a feature branch and open a PR.
 - Public URL: https://noatiko-sketch.github.io/tiko-shabbat-menu/.
+- Mobile fallback: the same frontend is served by the existing Apps Script deployment at `?mobile=1`, using native google.script.run instead of the cross-site Pages bridge. `npm run build` produces `work/google-Mobile.html`; publishing uploads it as Mobile while preserving Index and the manifest. Frontend changes must also publish this file to Google before Pages.
 - The old ChatGPT Site is legacy. Do not edit or publish it for Tiko requests.
 - Production storage is Google Drive via Apps Script (TIKO_STORAGE=drive), not D1. D1 is a legacy/local test backend. Never switch production to it or create a new Site/database as a shortcut.
 - Do not edit the live Drive JSON to test a feature. Tests and local preview use isolated data.
