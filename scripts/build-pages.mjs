@@ -1,4 +1,5 @@
 import {build} from 'vite';
+import {mobileLauncher} from './mobile-launcher.mjs';
 import {readFileSync,writeFileSync,mkdirSync,copyFileSync} from 'node:fs';
 
 const config=JSON.parse(readFileSync('google/deployment.json','utf8'));
@@ -12,6 +13,10 @@ for(const field of ['id','start_url','scope'])manifest[field]=base;
 manifest.icons=manifest.icons.map(icon=>({...icon,src:base+icon.src.replace(/^\//,'')}));
 writeFileSync('dist-pages/manifest.webmanifest',JSON.stringify(manifest));
 for(const dir of ['install','install/help']){mkdirSync('dist-pages/'+dir,{recursive:true});copyFileSync('dist-pages/index.html','dist-pages/'+dir+'/index.html');}
+const launcher=mobileLauncher({base,deployment:deployment.href});
+mkdirSync('dist-pages/mobile',{recursive:true});
+writeFileSync('dist-pages/mobile/index.html',launcher.html);
+writeFileSync('dist-pages/mobile/manifest.webmanifest',JSON.stringify(launcher.manifest));
 writeFileSync('dist-pages/.nojekyll','');
 writeFileSync('dist-pages/sw.js',`const CACHE='tiko-pages-v1';const BASE=${JSON.stringify(base)};self.addEventListener('install',e=>{self.skipWaiting();});self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>{if(e.request.mode==='navigate')e.respondWith(fetch(e.request).catch(()=>caches.match(BASE+'offline.html').then(r=>r||new Response('יש להתחבר לאינטרנט',{headers:{'content-type':'text/plain;charset=utf-8'}}))));});`);
 console.log('Built GitHub Pages site. No server credentials are included.');
