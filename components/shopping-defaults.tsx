@@ -1,12 +1,13 @@
 'use client';
+import {ShoppingCategorySelect,type CreateCategory} from '@/components/category-creator';
 import {useState} from 'react';
 import {LoaderCircle,Plus,X} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogTrigger} from '@/components/ui/dialog';
-import {shoppingCategories,shoppingName,type ShoppingCategory,type ShoppingProduct,type ShoppingImportItem} from '@/lib/shopping';
+import {shoppingCategories as defaultCategories,shoppingName,type ShoppingCategory,type ShoppingProduct,type ShoppingImportItem} from '@/lib/shopping';
 import {defaultShoppingChoices} from '@/lib/shopping-defaults';
 
 type DefaultProduct={name:string;category:ShoppingCategory};
-export function ShoppingDefaults({products,defaultProductIds=[],pending=false,saveError='',onAdd,onSave,onRemove}:{products:ShoppingProduct[];defaultProductIds?:string[];pending?:boolean;saveError?:string;onAdd:(items:ShoppingImportItem[])=>Promise<boolean>;onSave:(product:DefaultProduct)=>Promise<boolean>;onRemove:(name:string)=>Promise<boolean>}){
+export function ShoppingDefaults({categories=defaultCategories,onCreateCategory,products,defaultProductIds=[],pending=false,saveError='',onAdd,onSave,onRemove}:{categories?:Record<string,string>;onCreateCategory?:CreateCategory;products:ShoppingProduct[];defaultProductIds?:string[];pending?:boolean;saveError?:string;onAdd:(items:ShoppingImportItem[])=>Promise<boolean>;onSave:(product:DefaultProduct)=>Promise<boolean>;onRemove:(name:string)=>Promise<boolean>}){
  const [open,setOpen]=useState(false),[selected,setSelected]=useState<string[]>([]),[saving,setSaving]=useState(false),[error,setError]=useState('');
  const [adding,setAdding]=useState(false),[name,setName]=useState(''),[category,setCategory]=useState<ShoppingCategory>('general');
  const choices=defaultShoppingChoices(products,defaultProductIds);
@@ -22,14 +23,14 @@ export function ShoppingDefaults({products,defaultProductIds=[],pending=false,sa
      try{if(await onSave({name:name.trim(),category})){setAdding(false);}else setError('הפריט לא נשמר. אפשר לנסות שוב.');}finally{setSaving(false);}
     }}>
      <label>שם המוצר<input autoFocus required maxLength={100} value={name} disabled={saving} onChange={event=>{const value=event.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}}/></label>
-     <label>קטגוריה<select value={category} disabled={saving} onChange={event=>setCategory(event.target.value as ShoppingCategory)}>{Object.entries(shoppingCategories).map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label>
+     <label>קטגוריה<ShoppingCategorySelect value={category} onChange={setCategory} categories={categories} onCreate={onCreateCategory} disabled={saving}/></label>
      <button className="shopping-primary" disabled={saving||!name.trim()} type="submit">שמירה ברשימה הקבועה</button>
     </form>}
     {pending&&<p className="shopping-default-saving" role="status"><LoaderCircle className="spin" size={14}/> שומרים…</p>}
     {(error||saveError)&&<p className="shopping-error" role="alert">{error||saveError}</p>}
    </header>
    <div className="shopping-default-modal-body" aria-busy={saving}>
-    {Object.entries(shoppingCategories).map(([category,label])=>{
+    {Object.entries(categories).map(([category,label])=>{
      const group=choices.filter(p=>p.category===category);return group.length>0&&<fieldset key={category}><legend>{label}</legend>{group.map(product=>{
       const checked=selected.includes(product.id);
       return <div className="shopping-default-row" key={product.id}>

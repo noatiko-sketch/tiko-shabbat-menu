@@ -1,15 +1,17 @@
+import {categoryLabel,duplicateCategory} from './custom-categories.ts';
 import {family} from './family.ts';
 
 export const shoppingCategories = {
  produce:'ירקות ופירות', cleaning:'מוצרי ניקוי', legumes:'קטניות', cereal:'דגני בוקר',
  dairy:'מוצרי חלב', fresh:'דגים, בשר ועוף טריים', water:'מים', frozen:'קפואים', canned:'שימורים', general:'כללי',
 } as const;
-export type ShoppingCategory = keyof typeof shoppingCategories;
+export type ShoppingCategory = string;
+export const allShoppingCategories=(state?:Pick<ShoppingState,'categories'>):Record<string,string>=>({...shoppingCategories,...state?.categories});
 export type ShoppingProduct = {id:string;name:string;category:ShoppingCategory};
 export type ShoppingItem = {productId:string;quantity:string;bought:boolean;added_by?:string;updated_by:string;updated_at:string};
-export type ShoppingState = {revision:number;defaultProductIds?:string[];hiddenDefaults?:string[];products:ShoppingProduct[];items:ShoppingItem[];receipts:{id:string;actor:string}[]};
+export type ShoppingState = {revision:number;categories?:Record<string,string>;defaultProductIds?:string[];hiddenDefaults?:string[];products:ShoppingProduct[];items:ShoppingItem[];receipts:{id:string;actor:string}[]};
 export type ShoppingImportItem = {name:string;category:ShoppingCategory;quantity:string};
-export type ShoppingAction = {type:'shopping_add'|'shopping_toggle'|'shopping_remove'|'shopping_clear_bought'|'shopping_recategorize'|'shopping_import'|'shopping_default_save'|'shopping_default_remove';mutationId:string;revision?:number;productId?:string;rememberCategory?:boolean;skipExisting?:boolean;name?:string;category?:string;quantity?:string;bought?:boolean;items?:ShoppingImportItem[]};
+export type ShoppingAction = {type:'shopping_category_add'|'shopping_add'|'shopping_toggle'|'shopping_remove'|'shopping_clear_bought'|'shopping_recategorize'|'shopping_import'|'shopping_default_save'|'shopping_default_remove';mutationId:string;revision?:number;id?:string;label?:string;productId?:string;rememberCategory?:boolean;skipExisting?:boolean;name?:string;category?:string;quantity?:string;bought?:boolean;items?:ShoppingImportItem[]};
 export type ShoppingSnapshot = {status:'ready';storage:'google-drive';state_id:string;shopping:ShoppingState};
 export class ShoppingError extends Error {status:number;constructor(message:string,status=400){super(message);this.status=status;}}
 const shoppingCheck=(ok:unknown,message:string,status=400)=>{if(!ok)throw new ShoppingError(message,status);};
@@ -35,7 +37,14 @@ export function editShopping(source:ShoppingState,action:ShoppingAction,actor:st
   if(next.revision!==source.revision)next.revision=source.revision+1;return next;
  }
  const s=structuredClone(source);
- if(action.type==='shopping_default_save'||action.type==='shopping_default_remove'){
+ if(action.type==='shopping_category_add'){
+  const id=String(action.id||''),label=categoryLabel(String(action.label||''));
+  shoppingCheck(/^custom-[a-z0-9-]{1,43}$/.test(id)&&label.length>0&&label.length<=70,'קטגוריה לא תקינה.');
+  const categories=allShoppingCategories(s);
+  shoppingCheck(!Object.prototype.hasOwnProperty.call(categories,id),'הקטגוריה כבר קיימת.');
+  shoppingCheck(!duplicateCategory(categories,label),'הקטגוריה כבר קיימת.');
+  s.categories={...s.categories,[id]:label};
+ }else if(action.type==='shopping_default_save'||action.type==='shopping_default_remove'){
   shoppingCheck(typeof action.name==='string','יש לכתוב שם מוצר.');
   const name=action.name!.normalize('NFKC').replace(/\s+/g,' ').trim();
   shoppingCheck(name.length>0&&name.length<=100,'יש לכתוב שם מוצר עד 100 תווים.');
@@ -44,7 +53,7 @@ export function editShopping(source:ShoppingState,action:ShoppingAction,actor:st
   s.defaultProductIds||=[];
   if(action.type==='shopping_default_remove'){const ids=new Set(s.products.filter(p=>shoppingName(p.name)===key).map(p=>p.id));s.defaultProductIds=s.defaultProductIds.filter(id=>!ids.has(id));}
   else {
-   shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories,action.category||''),'יש לבחור קטגוריה.');
+   shoppingCheck(Object.prototype.hasOwnProperty.call(allShoppingCategories(s),action.category||''),'יש לבחור קטגוריה.');
    let product=s.products.find(p=>shoppingName(p.name)===key);
    if(product)product.category=action.category as ShoppingCategory;
    else {shoppingCheck(s.products.length<2000,'המאגר מכיל כבר 2,000 מוצרים.');product={id:'p-'+action.mutationId,name,category:action.category as ShoppingCategory};s.products.push(product);}
@@ -58,7 +67,7 @@ export function editShopping(source:ShoppingState,action:ShoppingAction,actor:st
    shoppingCheck(typeof action.name==='string','יש לכתוב שם מוצר.');
    const name=action.name!.replace(/\s+/g,' ').trim();
    shoppingCheck(name.length>0&&name.length<=100,'יש לכתוב שם מוצר עד 100 תווים.');
-   shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories,action.category||''),'יש לבחור קטגוריה.');
+   shoppingCheck(Object.prototype.hasOwnProperty.call(allShoppingCategories(s),action.category||''),'יש לבחור קטגוריה.');
    product=s.products.find(p=>shoppingName(p.name)===shoppingName(name));
    if(!product){
     shoppingCheck(s.products.length<2000,'המאגר מכיל כבר 2,000 מוצרים.');
@@ -84,7 +93,7 @@ export function editShopping(source:ShoppingState,action:ShoppingAction,actor:st
  }else if(action.type==='shopping_clear_bought')s.items=s.items.filter(i=>!i.bought);
  else if(action.type==='shopping_recategorize'){
   const product=s.products.find(p=>p.id===action.productId);shoppingCheck(product,'המוצר אינו במאגר.');
-  shoppingCheck(Object.prototype.hasOwnProperty.call(shoppingCategories,action.category||''),'יש לבחור קטגוריה.');
+  shoppingCheck(Object.prototype.hasOwnProperty.call(allShoppingCategories(s),action.category||''),'יש לבחור קטגוריה.');
   product!.category=action.category as ShoppingCategory;
  }
  else throw new ShoppingError('פעולת קניות לא מוכרת.');

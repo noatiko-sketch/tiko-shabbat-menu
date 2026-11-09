@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import ts from 'typescript';
 import {buildSync} from 'esbuild';
-const files=['lib/recipe-url.ts','lib/family.ts','lib/menu-model.ts','lib/drive-engine.ts','lib/shopping.ts','lib/shopping-scan.ts','lib/shopping-gemini.ts'];
+const files=['lib/custom-categories.ts','lib/recipe-url.ts','lib/family.ts','lib/menu-model.ts','lib/drive-engine.ts','lib/shopping.ts','lib/shopping-scan.ts','lib/shopping-gemini.ts'];
 const source=files.map(p=>fs.readFileSync(p,'utf8').replace(/^import .*;\n/gm,'').replace(/^export /gm,'')).join('\n');
 const engine=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.None}}).outputText;
 const wrapper=fs.readFileSync('google/wrapper.gs','utf8');
