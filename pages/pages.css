@@ -4,5 +4,3 @@
 .connection-page .remember-choice{display:flex;flex-direction:row;align-items:center;gap:.65rem;min-height:48px;line-height:1.5;margin:0 0 1.25rem;font-size:1rem}.connection-page .remember-choice input{width:24px;height:24px;flex:none;margin:0;accent-color:#0b4776}.remember-settings{border-block:1px solid #cbd5c5;padding:1rem 0;margin:1rem 0}.remember-settings h3{margin-top:0}.connection-notice{max-width:70rem;margin:.5rem auto;padding:.5rem 1rem}
 
 .direct-google-link{display:inline-block;margin-top:18px;text-decoration:underline;color:#204b72}
-
-.home-screen-link{align-self:center;color:#204b72;text-decoration:underline;font-size:14px;line-height:36px}
