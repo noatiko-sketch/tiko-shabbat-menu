@@ -1,9 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import Home from '../app/page';
-import {appPath} from '../lib/app-path';
-
-function HomeScreenLink(){return <a className="home-screen-link" href={appPath('/mobile/')} target="_top">הוספה למסך הבית</a>;}
 import {InstallApp,InstallInstructions} from '../components/family-tools';
 import {googleTransport,retryGoogleConnection,directGoogleUrl} from '../lib/google-transport';
 import {PasskeySettings} from '../components/passkey-settings';
@@ -24,12 +21,11 @@ function Connection({children}:{children:React.ReactNode}){
   return()=>{active=false;};
  },[attempt]);
  useEffect(()=>{const expired=()=>{setSettings(false);setCode('');setError('הכניסה פגה או שבוטלה. יש להיכנס שוב.');setState('code');};window.addEventListener('tiko-auth-expired',expired);return()=>window.removeEventListener('tiko-auth-expired',expired);},[]);
- if(state==='ready')return <><div className="connection-security" dir="rtl"><HomeScreenLink/>{config.passkeys&&<button onClick={()=>setSettings(true)}>הגדרות כניסה</button>}<button disabled={busy} onClick={async()=>{setBusy(true);try{await googleTransport().disconnect();}catch{}finally{setBusy(false);setCode('');setError('');setState('code');}}}>יציאה</button></div>{googleTransport().notice&&<p className="connection-notice" role="status" dir="rtl">{googleTransport().notice}</p>}{settings&&<PasskeySettings requiresCode={config.requiresCode} onClose={()=>setSettings(false)}/>} {children}</>;
+ if(state==='ready')return <><div className="connection-security" dir="rtl">{config.passkeys&&<button onClick={()=>setSettings(true)}>הגדרות כניסה</button>}<button disabled={busy} onClick={async()=>{setBusy(true);try{await googleTransport().disconnect();}catch{}finally{setBusy(false);setCode('');setError('');setState('code');}}}>יציאה</button></div>{googleTransport().notice&&<p className="connection-notice" role="status" dir="rtl">{googleTransport().notice}</p>}{settings&&<PasskeySettings requiresCode={config.requiresCode} onClose={()=>setSettings(false)}/>} {children}</>;
  return <main className="connection-page" dir="rtl"><h1>אוכל לשבת</h1>
   {state==='loading'&&<p role="status">מתחברים למאגר המשפחתי…</p>}
   {state==='code'&&<form onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{await googleTransport().connect(code);setCode('');setState('ready');}catch(e){setError((e as Error).name==='TimeoutError'?'החיבור ארך יותר מדי זמן. אפשר לנסות שוב.':(e as Error).message);}finally{setBusy(false);}}}><label>קוד הכניסה המשפחתי<input name="password" type="password" autoComplete="current-password" value={code} onChange={e=>setCode(e.target.value)} disabled={busy} required/></label><button disabled={busy}>{busy?'מתחברים…':'כניסה'}</button></form>}
   {error&&<p role="alert">{error}</p>}
-  {state==='code'&&<HomeScreenLink/>}
   {state==='code'&&!document.querySelector('meta[name="tiko-native"]')&&<a className="direct-google-link" href={directGoogleUrl()}>פתיחה בחיבור ישיר</a>}
   {(error||state==='loading')&&<button type="button" disabled={busy} onClick={()=>{retryGoogleConnection();setAttempt(value=>value+1);}}>ניסיון חיבור מחדש</button>}
  </main>;
