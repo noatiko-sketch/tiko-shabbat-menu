@@ -5,6 +5,7 @@ import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {ListPlus,Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
 import {allShoppingCategories,shoppingName,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
 import {confirmShoppingAddition} from '@/lib/shopping-addition';
+import {shoppingCategoryProducts} from '@/lib/shopping-category-products';
 import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 import {ShoppingDefaults} from '@/components/shopping-defaults';
 import {ShoppingMutations,acceptShoppingMutation} from '@/lib/shopping-mutations';
@@ -13,6 +14,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
  const [snapshot,setSnapshot]=useState<ShoppingSnapshot|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('');
  const [name,setName]=useState(''),[category,setCategory]=useState<ShoppingCategory>('general'),[quantity,setQuantity]=useState(''),[adding,setAdding]=useState(false),[showAdd,setShowAdd]=useState(false);
  const [search,setSearch]=useState(''),[filter,setFilter]=useState(''),[clearConfirm,setClearConfirm]=useState(false),[moving,setMoving]=useState<string|null>(null);
+ const [categoryChosen,setCategoryChosen]=useState(false);
  const snapshotRef=useRef(snapshot),pending=useRef(false),version=useRef(0),mounted=useRef(true),flight=useRef<AbortController|null>(null);
  snapshotRef.current=snapshot;
  const queue=useRef<ShoppingMutations|null>(null);
@@ -63,6 +65,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
  const shoppingCategories=allShoppingCategories(snapshot?.shopping);
  const createCategory=(id:string,label:string)=>act({type:'shopping_category_add',id,label});
  const data=snapshot?.shopping,products=data?.products||[],items=data?.items||[];
+ const categoryProducts=categoryChosen?shoppingCategoryProducts(products,category,name):[];
  const remaining=items.filter(i=>!i.bought),bought=items.filter(i=>i.bought),byId=new Map(products.map(p=>[p.id,p]));
  const catalog=products.filter(p=>(!filter||p.category===filter)&&p.name.includes(search.trim())).sort((a,b)=>a.name.localeCompare(b.name,'he'));
  const categoryEditor=(product:ShoppingProduct,scope='active')=>moving===`${scope}:${product.id}`&&<div className="shopping-category-editor"><label>קטגוריה של {product.name}<ShoppingCategorySelect label={`קטגוריה של ${product.name}`} value={product.category} categories={shoppingCategories} onCreate={createCategory} onChange={category=>{setMoving(null);void act({type:'shopping_recategorize',productId:product.id,category});}}/></label><button type="button" onClick={()=>setMoving(null)}>סגירה</button></div>;
@@ -95,8 +98,12 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
     </div>{showAdd&&<aside id="shopping-add-panel" className="shopping-add-panel" aria-label="הוספת מוצרים">
      <h2 className="sr-only">הוספת מוצרים</h2>
      <ShoppingDefaults categories={shoppingCategories} onCreateCategory={createCategory} pending={saving} saveError={error} products={products} defaultProductIds={data?.defaultProductIds||[]} onSave={product=>act({type:'shopping_default_save',...product},true)} onRemove={name=>act({type:'shopping_default_remove',name},true)} onAdd={items=>act({type:'shopping_import',items,skipExisting:true},true)}/>
-     <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{const value=e.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}} maxLength={100} required placeholder="שם המוצר"/></label>
-      <div className="shopping-form-pair"><label>קטגוריה<ShoppingCategorySelect value={category} onChange={setCategory} categories={shoppingCategories} onCreate={createCategory} disabled={saving}/></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
+     <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{const value=e.target.value;setName(value);if(!categoryChosen)setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}} maxLength={100} required placeholder="שם המוצר"/></label>
+      <div className="shopping-form-pair"><label>קטגוריה<ShoppingCategorySelect value={category} onChange={value=>{setCategory(value);setCategoryChosen(true);}} categories={shoppingCategories} onCreate={createCategory} disabled={saving}/></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
+      {categoryChosen&&<section className="shopping-category-products" aria-label={`מוצרים מהמאגר בקטגוריה ${shoppingCategories[category]}`}>
+       <p className="shopping-hint">מוצרים מהמאגר בקטגוריה {shoppingCategories[category]} — אפשר לבחור או להקליד מוצר חדש</p>
+       {categoryProducts.length?<ul>{categoryProducts.map(product=><li key={product.id}><button type="button" aria-pressed={name===product.name} onClick={()=>setName(product.name)}>{product.name}</button></li>)}</ul>:<p className="shopping-hint" role="status">{name.trim()?'לא נמצאו מוצרים מתאימים בקטגוריה זו':'עדיין אין מוצרים במאגר בקטגוריה זו'}</p>}
+      </section>}
       <button className="shopping-primary" type="submit" disabled={adding||!name.trim()}>{adding?<LoaderCircle className="spin" size={18}/>:<Plus size={18}/>} הוספה</button>
      </form>
      <details className="shopping-catalog"><summary>מהמאגר <span>{products.length}</span><ChevronDown size={17}/></summary>
