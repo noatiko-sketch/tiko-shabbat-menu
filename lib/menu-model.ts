@@ -1,9 +1,9 @@
 import {recipeUrl} from './recipe-url.ts';
-import { family,inferCategory } from './family.ts';
+import { family,inferCategory,type MealType } from './family.ts';
 export type Dish = { name: string; category: string; updated_by?: string; updated_at?: string; prepared_by?: string; recipe_url?: string };
-export type Meal = { date: string; dishes: (Dish | null)[]; slot_categories?: string[]; manual_order?: boolean };
+export type Meal = { date: string; dishes: (Dish | null)[]; slot_categories?: string[]; manual_order?: boolean; meal_type?: MealType };
 export type Menu = { saturday: string; week: 1 | 2 | 3; friday: Meal; lunch: Meal; sent?: boolean; approved?: boolean; approved_at?: string; layout_version?: number };
-export type Action = { compact?: boolean; viewed?: boolean; catalogRevision?: number; mutationId?: string; toIndex?: number; targetSaturday?: string; targetMeal?: 'friday'|'lunch'; responsible?: string; type: 'transfer' | 'assign' | 'generate' | 'replace' | 'remove' | 'add' | 'approve' | 'move' | 'seen' | 'family_approve' | 'family_unapprove' | 'archive_completed' | 'catalog_save' | 'catalog_remove' | 'category_save' | 'category_remove'; saturday: string; meal?: 'friday' | 'lunch'; index?: number; dish?: Dish; removeFromCatalog?: boolean; category?: string; revision?: number; actor?: string; diet?: string; oldName?: string; id?: string; label?: string };
+export type Action = { compact?: boolean; viewed?: boolean; catalogRevision?: number; mutationId?: string; toIndex?: number; targetSaturday?: string; targetMeal?: 'friday'|'lunch'; responsible?: string; mealType?: MealType; type: 'set_meal_type' | 'transfer' | 'assign' | 'generate' | 'replace' | 'remove' | 'add' | 'approve' | 'move' | 'seen' | 'family_approve' | 'family_unapprove' | 'archive_completed' | 'catalog_save' | 'catalog_remove' | 'category_save' | 'category_remove'; saturday: string; meal?: 'friday' | 'lunch'; index?: number; dish?: Dish; removeFromCatalog?: boolean; category?: string; revision?: number; actor?: string; diet?: string; oldName?: string; id?: string; label?: string };
 export const categories = { friday: ['soup','salad','salad','baked','pasta','pastry','dessert'], lunch: ['salad','salad','baked','main','side','dessert'] };
 export function addDays(day: string, amount: number) {
   const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + amount); return d.toISOString().slice(0,10);
@@ -35,6 +35,11 @@ export function editMenu(source: Menu, action: Action): Menu {
   }
   if (action.meal !== 'friday' && action.meal !== 'lunch') throw Error('ארוחה לא תקינה.');
   const meal = menu[action.meal];
+  if(action.type==='set_meal_type'){
+    if(action.mealType!=='dairy'&&action.mealType!=='meat')throw Error('סוג ארוחה לא תקין.');
+    meal.meal_type=action.mealType;
+    menu.approved=false;delete menu.approved_at;return menu;
+  }
   if(action.type==='assign'){
     const index=action.index;if(!Number.isInteger(index)||index===undefined||index<0||!meal.dishes[index])throw Error('מיקום מנה לא תקין.');
     if(action.responsible!==''&&!family.includes(action.responsible as any))throw Error('יש לבחור בן משפחה.');

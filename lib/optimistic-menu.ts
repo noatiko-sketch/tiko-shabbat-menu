@@ -22,7 +22,7 @@ export function projectAction<S extends MutationSnapshot>(source:S,action:Action
   if(a.responsible!==undefined)dish=editMenu(s.current,{...a,type:'assign'})[a.meal!].dishes[a.index!]!;
   if(a.targetSaturday===a.saturday){
    if(a.targetMeal===a.meal)throw Error('המנה כבר בארוחה הזו.');
-   if(!mealAllows(inferDiet(dish.name),a.targetMeal!,s.current.week))throw Error('המנה אינה מתאימה לארוחה בשרית או חלבית.');
+   if(!mealAllows(inferDiet(dish.name),a.targetMeal!,s.current.week,s.current[a.targetMeal!].meal_type))throw Error('המנה אינה מתאימה לארוחה בשרית או חלבית.');
    if(s.current[a.targetMeal!].dishes.some(d=>d&&norm(d.name)===norm(dish.name)))throw Error('המנה כבר מופיעה בארוחת היעד.');
   }
   s.current=editMenu(s.current,{...a,type:'remove'});
@@ -32,7 +32,7 @@ export function projectAction<S extends MutationSnapshot>(source:S,action:Action
  if(a.type==='seen'||a.type==='family_approve'||a.type==='family_unapprove'){
   if(a.type==='family_approve')s.current=editMenu(s.current,{...a,type:'approve'});
  }else{
-  if(a.type==='replace'||a.type==='add'){const dish=resolve(a.dish);if(!mealAllows(dish.diet,a.meal!,s.current.week))throw Error('המנה אינה מתאימה לארוחה בשרית או חלבית.');a.dish=dish;put(dish);s.catalog_revision=(s.catalog_revision||0)+1;}
+  if(a.type==='replace'||a.type==='add'){const dish=resolve(a.dish);if(!mealAllows(dish.diet,a.meal!,s.current.week,s.current[a.meal!]?.meal_type))throw Error('המנה אינה מתאימה לארוחה בשרית או חלבית.');a.dish=dish;put(dish);s.catalog_revision=(s.catalog_revision||0)+1;}
   if(a.type==='remove'&&a.removeFromCatalog){const removed=s.current[a.meal!].dishes[a.index!];s.catalog=s.catalog?.filter(d=>norm(d.name)!==norm(removed?.name||''));s.catalog_revision=(s.catalog_revision||0)+1;}
   s.current=editMenu(s.current,a);if((a.type==='add'||a.type==='replace')&&a.dish?.recipe_url!==undefined)for(const d of [...s.current.friday.dishes,...s.current.lunch.dishes])if(d&&norm(d.name)===norm(a.dish.name))d.recipe_url=a.dish.recipe_url;s.revision=(s.revision||0)+1;
  }

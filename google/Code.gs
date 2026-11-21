@@ -3260,8 +3260,12 @@ function inferDiet(name) {
     const dairy = (/^(עוגה|גלידה|פבלובה|עוגת יומולדת)$/.test(text) || /גבינ|שמנת|חלומי|בוראטה|לאבנה|חמא[הת]|בולגרית|רוזה|ציזיקי|חלבי|חלב|פרמזן|מוצרלה|פטה|יוגורט|ריקוטה/.test(text)) && !/טבעוני|פרווה/.test(text);
     return meat && dairy ? 'mixed' : meat ? 'meat' : dairy ? 'dairy' : 'pareve';
 }
-function mealAllows(diet, meal, week) { if (diet === 'mixed')
-    return false; return meal === 'friday' ? diet !== 'meat' : week === 3 ? diet !== 'dairy' : diet !== 'meat'; }
+function mealType(meal, week, selected) {
+    return selected ?? (meal === 'lunch' && week === 3 ? 'meat' : 'dairy');
+}
+function mealAllows(diet, meal, week, selected) {
+    return diet !== 'mixed' && diet !== (mealType(meal, week, selected) === 'dairy' ? 'meat' : 'dairy');
+}
 const avatarPaths = { 'אמא': 'zucchini', 'אביגיל': 'avocado', 'יפעת': 'pomegranate', 'נעה': 'broccoli', 'אבא': 'potato' };
 function genderText(text, name) { if (name !== 'אבא')
     return text; const pairs = { 'שומרת': 'שומר', 'שמרי': 'שמור', 'הוסיפי': 'הוסף', 'החליפי': 'החלף', 'כתבי': 'כתוב', 'בחרי': 'בחר', 'אשרי': 'אשר', 'בדקי': 'בדוק', 'רענני': 'רענן', 'נסי': 'נסה', 'תרצי': 'תרצה', 'אישרת את התפריט': 'אישרת את התפריט' }; return text.replace(/שומרת|שמרי|הוסיפי|החליפי|כתבי|בחרי|אשרי|בדקי|רענני|נסי|תרצי/g, w => pairs[w] || w); }
@@ -3304,6 +3308,14 @@ function editMenu(source, action) {
     if (action.meal !== 'friday' && action.meal !== 'lunch')
         throw Error('ארוחה לא תקינה.');
     const meal = menu[action.meal];
+    if (action.type === 'set_meal_type') {
+        if (action.mealType !== 'dairy' && action.mealType !== 'meat')
+            throw Error('סוג ארוחה לא תקין.');
+        meal.meal_type = action.mealType;
+        menu.approved = false;
+        delete menu.approved_at;
+        return menu;
+    }
     if (action.type === 'assign') {
         const index = action.index;
         if (!Number.isInteger(index) || index === undefined || index < 0 || !meal.dishes[index])
@@ -3524,7 +3536,7 @@ function driveSnapshot(s, day, ctx, autoGenerate = true, compact = false) {
     const current = menu || emptyMenu(day, s.anchor_saturday, s.anchor_week), foods = catalog(s), candidates = {}, candidateGroups = {};
     if (!compact)
         for (const kind of ['friday', 'lunch'])
-            current[kind].dishes.forEach((dish, i) => { const category = dish?.category || current[kind].slot_categories?.[i] || 'extra'; const key = kind + ':' + category; candidates[`${kind}:${i}`] = candidateGroups[key] || (candidateGroups[key] = foods.filter((d) => d.category === category && mealAllows(d.diet, kind, current.week))); });
+            current[kind].dishes.forEach((dish, i) => { const category = dish?.category || current[kind].slot_categories?.[i] || 'extra'; const key = kind + ':' + category; candidates[`${kind}:${i}`] = candidateGroups[key] || (candidateGroups[key] = foods.filter((d) => d.category === category && mealAllows(d.diet, kind, current.week, current[kind].meal_type))); });
     return { api_version: 10, storage: 'google-drive', state_id: driveStateId, status: 'ready', current: copy(current), previous: compact ? undefined : copy(s.history.filter((m) => m.saturday < day).sort((a, b) => b.saturday.localeCompare(a.saturday))[0] || null), revision: revision(s, day), catalog_revision: Number(s.catalog_revision || 0), has_menu: !!menu, upcoming_saturday: ctx.upcoming, catalog: foods, categories: copy(s.food_categories), candidates, archived_saturdays: Object.keys(s.shabbat_archive || {}).sort(), family_status: day === ctx.upcoming ? Object.values(s.family_status).filter((x) => x.saturday === day) : [] };
 }
 function archiveCompletedShabbats(s, ctx) {
@@ -3573,7 +3585,7 @@ function driveAction(original, action, actor, ctx) {
         s.recent_mutations = [...(s.recent_mutations || []), { id: a.mutationId, actor }].slice(-80);
     } return { state: s, changed: true, response: { detail: a.type === 'seen' ? '' : a.type === 'family_approve' ? 'סימנת שאהבת את התפריט.' : 'השינוי נשמר.', snapshot: driveSnapshot(s, day, ctx, false, a.compact) } }; };
     const bumpCatalog = () => { s.catalog_revision = Number(s.catalog_revision || 0) + 1; };
-    const allowed = ['archive_completed', 'transfer', 'assign', 'seen', 'family_unapprove', 'family_approve', 'approve', 'generate', 'move', 'add', 'replace', 'remove', 'catalog_save', 'catalog_remove', 'category_save', 'category_remove'];
+    const allowed = ['archive_completed', 'transfer', 'assign', 'set_meal_type', 'seen', 'family_unapprove', 'family_approve', 'approve', 'generate', 'move', 'add', 'replace', 'remove', 'catalog_save', 'catalog_remove', 'category_save', 'category_remove'];
     check(allowed.includes(a.type), 'פעולה לא מוכרת.');
     if (a.type === 'archive_completed') {
         const count = archiveCompletedShabbats(s, ctx);
@@ -3625,7 +3637,7 @@ function driveAction(original, action, actor, ctx) {
         if (a.responsible !== undefined)
             dish = editMenu(current, { ...a, type: 'assign' })[a.meal].dishes[a.index];
         let target = a.targetSaturday === day ? current : copy(saved(s, a.targetSaturday) || generateDriveMenu(s, a.targetSaturday, ctx));
-        check(mealAllows(inferDiet(dish.name), a.targetMeal, target.week), 'המנה אינה מתאימה לארוחה בשרית או חלבית.');
+        check(mealAllows(inferDiet(dish.name), a.targetMeal, target.week, target[a.targetMeal].meal_type), 'המנה אינה מתאימה לארוחה בשרית או חלבית.');
         check(!target[a.targetMeal].dishes.some(d => d && norm(d.name) === norm(dish.name)), 'המנה כבר מופיעה בארוחת היעד.');
         const source = editMenu(current, { ...a, type: 'remove' });
         if (a.targetSaturday === day)
@@ -3664,7 +3676,7 @@ function driveAction(original, action, actor, ctx) {
         else {
             if (a.type === 'add' || a.type === 'replace') {
                 a.dish = resolve(s, a.dish);
-                check(mealAllows(inferDiet(a.dish.name), a.meal, current.week), 'המנה אינה מתאימה לארוחה בשרית או חלבית.');
+                check(mealAllows(inferDiet(a.dish.name), a.meal, current.week, current[a.meal]?.meal_type), 'המנה אינה מתאימה לארוחה בשרית או חלבית.');
             }
             menu = editMenu(current, a);
             if ((a.type === 'add' || a.type === 'replace') && a.dish?.recipe_url !== undefined)
