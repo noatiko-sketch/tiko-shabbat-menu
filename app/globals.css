@@ -137,3 +137,5 @@
   text-align: center;
   overflow-wrap: anywhere;
 }
+
+.meal{scroll-margin-top:calc(var(--sticky-header-height) + 60px)}
