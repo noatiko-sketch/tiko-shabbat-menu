@@ -1,7 +1,7 @@
 'use client';
 import {appPath} from '@/lib/app-path';
 import {apiFetch} from '@/lib/google-transport';
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {AppBackProvider,useAppBack} from '@/components/app-back';
 import {Button} from '@/components/ui/button';
 import {ChevronLeft,ChevronRight,Pencil,Trash2,Plus,LoaderCircle,ChefHat} from 'lucide-react';
@@ -11,6 +11,7 @@ import {projectAction} from '@/lib/optimistic-menu';
 import {MenuMutations} from '@/lib/menu-mutations';
 import {isNewAssignment,assignmentToast,type AssignmentToast} from '@/lib/assignment-toast';
 import {dishCandidates} from '@/lib/dish-candidates';
+import {opensAtShabbatLunch} from '@/lib/menu-opening';
 import {RecipeLink} from '@/components/recipe';
 import {DishEditor} from '@/components/dish-editor';
 import {ShoppingList} from '@/components/shopping-list';
@@ -30,6 +31,8 @@ function MenuHome(){
  const [person,setPerson]=useState(''),[tab,setTab]=useState<'menu'|'catalog'|'shopping'>('menu'),[data,setData]=useState<Snapshot|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[saving,setSaving]=useState(false),[message,setMessage]=useState('');
  const [selectedSaturday,setSelectedSaturday]=useState(()=>upcomingSaturday()),[editing,setEditing]=useState<{meal:'friday'|'lunch';index:number;adding?:boolean}|null>(null),[formError,setFormError]=useState(''),[remove,setRemove]=useState<{meal:'friday'|'lunch';index:number}|null>(null);
  useEffect(()=>{for(const src of ['/toasts/parents-minimal.webp','/toasts/bowl-minimal.webp',...Object.values(avatarPaths).map(name=>`/avatars/${name}-minimal.png`)]){const image=new Image();image.src=appPath(src);}},[]);
+ const [startAtLunch]=useState(()=>opensAtShabbatLunch());
+ const lunchSection=useRef<HTMLElement>(null),initialMenuShown=useRef(false);
  const [viewTrail,setViewTrail]=useState<View[]>([]);
  const [shoppingSaving,setShoppingSaving]=useState(false);
  const [celebration,setCelebration]=useState<(AssignmentToast&{id:string})|null>(null);
@@ -60,7 +63,7 @@ function MenuHome(){
  useEffect(()=>{const c=new AbortController();void refresh(c.signal);return()=>c.abort();},[refresh]);
  useEffect(()=>{if(!person)return;const timer=setInterval(()=>{if(document.visibilityState==='visible'&&!pending.current&&!editing&&!dragging.current)void refresh(undefined,true);},30000);return()=>clearInterval(timer);},[person,editing,refresh]);
  useEffect(()=>{if(tab==='menu'&&person&&data?.current?.saturday===data?.upcoming_saturday&&!data?.family_status?.some(x=>x.name===person&&x.seen_revision===data.revision))void refresh(undefined,true);},[tab]);
- useEffect(()=>{document.querySelector('.planning-hero')?.scrollIntoView({block:'start',behavior:'instant'});},[tab]);
+ useLayoutEffect(()=>{document.querySelector('.planning-hero')?.scrollIntoView({block:'start',behavior:'instant'});},[tab]);
  const act=async(action:Action)=>{
   const requestAction={...action,actor:person,viewed:tabRef.current==='menu',mutationId:crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('')};
   setMessage('');setFormError('');
@@ -88,6 +91,12 @@ function MenuHome(){
  };
 
  const current=data?.current,connected=data?.status==='ready',isUpcoming=selectedSaturday===(data?.upcoming_saturday||upcomingSaturday()),categoryLabels=data?.categories||{};
+ const currentSaturday=current?.saturday;
+ useLayoutEffect(()=>{
+  if(initialMenuShown.current||tab!=='menu'||!connected||currentSaturday!==selectedSaturday||!lunchSection.current)return;
+  initialMenuShown.current=true;
+  if(startAtLunch&&isUpcoming)lunchSection.current.scrollIntoView({block:'start',behavior:'instant'});
+ },[tab,connected,currentSaturday,selectedSaturday,startAtLunch,isUpcoming]);
  const closeEditor=()=>{setEditing(null);setFormError('');};
  const showView=(view:View)=>{
   closeEditor();setRemove(null);setTab(view.tab);
@@ -115,7 +124,7 @@ function MenuHome(){
  const meal=(menu:Menu,kind:'friday'|'lunch')=>{
   const title=kind==='friday'?'שישי בערב':'שבת בצהריים';
   const selected=menu[kind].meal_type;
-  return <section className="meal" aria-label={title}>
+  return <section className="meal" aria-label={title} ref={kind==='lunch'?lunchSection:undefined}>
    <div className="meal-heading">
     <h2>{title}</h2>
     <select className="meal-type-select" aria-label={`סוג הארוחה · ${title}`} disabled={busy} value={mealType(kind,menu.week,selected)}
