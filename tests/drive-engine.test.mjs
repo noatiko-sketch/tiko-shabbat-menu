@@ -54,3 +54,31 @@ test('meal type changes update dessert choices optimistically and persist indepe
  assert.equal(restored.response.snapshot.candidates[`lunch:${dessertIndex}`].some(d=>d.name==='גלידה'),false);
  assert.throws(()=>driveAction(restored.state,{...replace,revision:restored.response.snapshot.revision},'נעה',meatCtx),/אינה מתאימה/);
 });
+
+test('moving an existing menu dish to another category updates its catalog and survives reloading',()=>{
+ const name='מרק אפונה',recipe_url='https://example.com/pea-soup',responsible='אבא';
+ const initial=run(base(),{type:'add',meal:'friday',dish:{name,category:'soup',recipe_url},responsible});
+ const custom=run(initial.state,{type:'category_save',id:'starters',label:'מנות פתיחה'});
+ let state=custom.state,snapshot=custom.response.snapshot;
+ for(const category of ['starters','extra','soup']){
+  const action={type:'replace',meal:'friday',index:0,dish:{name,category,recipe_url},responsible};
+  const projected=projectAction(snapshot,{...action,saturday:ctx.upcoming,actor:'נעה'});
+  const saved=run(state,action);
+  state=initializeDrive(JSON.parse(JSON.stringify(saved.state)),foods,ctx);
+  snapshot=driveSnapshot(state,ctx.upcoming,ctx);
+  for(const result of [projected,snapshot]){
+   const {dishes,slot_categories}=result.current.friday;
+   assert.equal(dishes.length,1);
+   assert.equal(slot_categories[0],category);
+   assert.deepEqual(
+    [dishes[0].name,dishes[0].category,dishes[0].recipe_url,dishes[0].prepared_by],
+    [name,category,recipe_url,responsible],
+   );
+   const matches=result.catalog.filter(d=>d.name===name);
+   assert.equal(matches.length,1);
+   assert.equal(matches[0].category,category);
+  }
+  assert.equal(snapshot.revision,saved.response.snapshot.revision);
+  assert.equal(snapshot.catalog_revision,saved.response.snapshot.catalog_revision);
+ }
+});

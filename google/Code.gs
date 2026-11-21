@@ -3361,6 +3361,8 @@ function editMenu(source, action) {
             throw Error('כתבי שם מנה עד 100 תווים.');
         const category = action.dish?.category && action.dish.category !== 'auto' ? action.dish.category : inferCategory(name);
         const dish = { name, category, updated_by: action.actor, updated_at: new Date().toISOString() };
+        if (category === 'extra' && action.dish?.category_explicit)
+            dish.category_explicit = true;
         if (action.dish?.recipe_url !== undefined)
             dish.recipe_url = recipeUrl(action.dish.recipe_url);
         else if (action.type === 'replace' && meal.dishes[index]?.name === name && meal.dishes[index]?.recipe_url)
@@ -3445,11 +3447,12 @@ function initializeDrive(state, foods, ctx) {
     }
     // Normalize unclassified dishes on every weekly load, without rewriting archives,
     // closed history, assignments, recipes or the family's manual order.
+    // Explicit selections of “מנות נוספות” are already classified.
     let classified = false;
     const categoryFor = (name) => { const id = inferCategory(name); return state.food_categories[id] ? id : state.food_categories.main ? 'main' : Object.keys(state.food_categories).find(id => id !== 'extra') || 'extra'; };
     for (const list of [state.dish_catalog, state.manual_dishes, state.custom_dishes])
         for (const dish of list) {
-            if (dish && (dish.category === 'extra' || dish.category === 'auto' || !dish.category)) {
+            if (dish && ((dish.category === 'extra' && !dish.category_explicit) || dish.category === 'auto' || !dish.category)) {
                 const category = categoryFor(dish.name);
                 if (category !== dish.category) {
                     dish.category = category;
@@ -3466,7 +3469,7 @@ function initializeDrive(state, foods, ctx) {
         let changed = false;
         for (const kind of ['friday', 'lunch'])
             menu[kind].dishes.forEach((dish, index) => {
-                if (!dish || dish.category !== 'extra' && dish.category !== 'auto' && dish.category)
+                if (!dish || (dish.category === 'extra' ? dish.category_explicit : dish.category && dish.category !== 'auto'))
                     return;
                 const category = categoryFor(dish.name);
                 if (category === dish.category)
@@ -3488,7 +3491,7 @@ function initializeDrive(state, foods, ctx) {
 const saved = (s, day) => s.menu_drafts[day] || s.history.find((m) => m.saturday === day);
 const revision = (s, day) => Number(s.menu_revisions[day] || 0);
 function catalog(s) { const blocked = new Set(s.excluded_dishes.map(norm)); return s.dish_catalog.filter((d) => !blocked.has(norm(d.name))).map((d) => ({ ...d, category: s.food_categories[d.category] ? d.category : 'extra', diet: inferDiet(d.name) })).sort((a, b) => a.name.localeCompare(b.name, 'he')); }
-function resolve(s, dish) { const name = String(dish?.name || '').trim(); check(name && name.length <= 100, 'יש לכתוב שם מנה עד 100 תווים.'); const id = dish.category && dish.category !== 'auto' ? dish.category : inferCategory(name); const existing = s.dish_catalog.find((d) => norm(d.name) === norm(name)); const link = dish.recipe_url !== undefined ? recipeUrl(dish.recipe_url) : existing?.recipe_url; return { name, category: s.food_categories[id] ? id : 'extra', ...(link !== undefined ? { recipe_url: link } : {}) }; }
+function resolve(s, dish) { const name = String(dish?.name || '').trim(); check(name && name.length <= 100, 'יש לכתוב שם מנה עד 100 תווים.'); const id = dish.category && dish.category !== 'auto' ? dish.category : inferCategory(name); const existing = s.dish_catalog.find((d) => norm(d.name) === norm(name)); const link = dish.recipe_url !== undefined ? recipeUrl(dish.recipe_url) : existing?.recipe_url; return { name, category: s.food_categories[id] ? id : 'extra', ...(dish.category === 'extra' && s.food_categories.extra ? { category_explicit: true } : {}), ...(link !== undefined ? { recipe_url: link } : {}) }; }
 function putDish(s, dish, actor, now) { const row = { ...dish, diet: inferDiet(dish.name), updated_by: actor, updated_at: now }; s.dish_catalog = s.dish_catalog.filter((d) => norm(d.name) !== norm(row.name)); s.dish_catalog.push(row); s.excluded_dishes = s.excluded_dishes.filter((n) => norm(n) !== norm(row.name)); s.manual_dishes = s.manual_dishes.filter((d) => norm(d.name) !== norm(row.name)); s.manual_dishes.push(copy(row)); return row; }
 // Keep the one recipe per catalog dish in open menus, preserving closed Saturdays.
 function syncRecipe(s, dish, ctx, except) {
@@ -3518,7 +3521,7 @@ function generateDriveMenu(s, day, ctx, random = Math.random) {
     const recent = new Set(s.history.filter((m) => m.saturday < day).sort((a, b) => b.saturday.localeCompare(a.saturday)).slice(0, 2).flatMap((m) => [...m.friday.dishes, ...m.lunch.dishes].filter(Boolean).map(d => variant(d.name))));
     for (const kind of ['friday', 'lunch']) {
         menu[kind].dishes = categories[kind].map(category => { const available = foods.filter((d) => mealAllows(d.diet, kind, menu.week) && !used.has(norm(d.name))); const matches = available.filter((d) => d.category === category || (category === 'main' && (d.category === 'extra' || !defaultCategories[d.category]))); const fresh = matches.filter((d) => !recent.has(variant(d.name))); const fallback = category === 'dessert' ? [] : available.filter((d) => d.category !== 'dessert'); const freshFallback = fallback.filter((d) => !recent.has(variant(d.name))); const choices = fresh.length ? fresh : matches.length ? matches : freshFallback.length ? freshFallback : fallback; const dish = choices[Math.min(choices.length - 1, Math.floor(random() * choices.length))]; if (!dish)
-            return null; used.add(norm(dish.name)); return { name: dish.name, category: dish.category, updated_by: 'אוטומטית', updated_at: ctx.now, ...(dish.recipe_url !== undefined ? { recipe_url: dish.recipe_url } : {}) }; });
+            return null; used.add(norm(dish.name)); return { name: dish.name, category: dish.category, ...(dish.category_explicit ? { category_explicit: true } : {}), updated_by: 'אוטומטית', updated_at: ctx.now, ...(dish.recipe_url !== undefined ? { recipe_url: dish.recipe_url } : {}) }; });
         menu[kind].slot_categories = menu[kind].dishes.map((d, i) => d?.category || categories[kind][i]);
     }
     menu.approved = false;
