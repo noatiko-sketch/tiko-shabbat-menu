@@ -20,6 +20,12 @@ export function inferDiet(name:string):'meat'|'dairy'|'pareve'|'mixed' {
  const dairy=(/^(עוגה|גלידה|פבלובה|עוגת יומולדת)$/.test(text)||/גבינ|שמנת|חלומי|בוראטה|לאבנה|חמא[הת]|בולגרית|רוזה|ציזיקי|חלבי|חלב|פרמזן|מוצרלה|פטה|יוגורט|ריקוטה/.test(text))&&!/טבעוני|פרווה/.test(text);
  return meat&&dairy?'mixed':meat?'meat':dairy?'dairy':'pareve';
 }
-export function mealAllows(diet:string,meal:'friday'|'lunch',week:number){if(diet==='mixed')return false;return meal==='friday'?diet!=='meat':week===3?diet!=='dairy':diet!=='meat';}
+export type MealType = 'dairy' | 'meat';
+export function mealType(meal:'friday'|'lunch',week:number,selected?:MealType):MealType {
+ return selected ?? (meal==='lunch'&&week===3?'meat':'dairy');
+}
+export function mealAllows(diet:string,meal:'friday'|'lunch',week:number,selected?:MealType){
+ return diet!=='mixed'&&diet!==(mealType(meal,week,selected)==='dairy'?'meat':'dairy');
+}
 export const avatarPaths:Record<string,string>={'אמא':'zucchini','אביגיל':'avocado','יפעת':'pomegranate','נעה':'broccoli','אבא':'potato'};
 export function genderText(text:string,name:string){if(name!=='אבא')return text;const pairs:Record<string,string>={'שומרת':'שומר','שמרי':'שמור','הוסיפי':'הוסף','החליפי':'החלף','כתבי':'כתוב','בחרי':'בחר','אשרי':'אשר','בדקי':'בדוק','רענני':'רענן','נסי':'נסה','תרצי':'תרצה','אישרת את התפריט':'אישרת את התפריט'};return text.replace(/שומרת|שמרי|הוסיפי|החליפי|כתבי|בחרי|אשרי|בדקי|רענני|נסי|תרצי/g,w=>pairs[w]||w);}

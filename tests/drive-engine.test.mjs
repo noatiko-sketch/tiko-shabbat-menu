@@ -3,6 +3,9 @@ import {test} from 'node:test';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {initializeDrive,driveSnapshot,driveAction,mergeSiteExport} from '../lib/drive-engine.ts';
+import {dishCandidates} from '../lib/dish-candidates.ts';
+import {projectAction} from '../lib/optimistic-menu.ts';
+import {mealType} from '../lib/family.ts';
 import {proxyDriveMenu} from '../lib/drive-proxy.ts';
 const ctx={upcoming:'2026-10-24',now:'2026-10-19T19:00:00Z'};
 const foods='## מרקים\n- מרק אפונה\n- מרק עגבניות\n## סלטים\n- סלט חסה\n- סלט עגבניות\n## תוספות\n- כרובית בתנור\n- אורז\n## עיקריות\n- דג סול\n- פרגיות\n- פסטה גבינות\n- פשטידת גבינה';
@@ -22,3 +25,32 @@ test('proxy validates the exact Drive database and never falls back to another d
 test('proxy preserves stale-edit failures and rejects cross-origin writes',async()=>{const conflict=await proxyDriveMenu(request(),config,async()=>Response.json({http_status:409,detail:'stale'}));assert.equal(conflict.status,409);const cross=new Request('https://site.test/api/menu',{method:'POST',headers:{origin:'https://other.test','x-family-member':encodeURIComponent('נעה')},body:'{}'});assert.equal((await proxyDriveMenu(cross,config)).status,403);});
 
 test('newer family edits replace only an untouched automatic Drive draft and preserve both versions',()=>{const s=base();driveSnapshot(s,ctx.upcoming,ctx);s.site_migration_v1={at:'earlier',imported_dates:[]};const site=structuredClone(s.menu_drafts[ctx.upcoming]);site.friday.dishes[0]={name:'מרק כרוב',category:'soup',updated_by:'נעה'};const data={format:'tiko-site-export-v1',menus:[{payload:site,revision:10}]};const merged=mergeSiteExport(s,data,ctx);assert.equal(merged.menu_revisions[ctx.upcoming],10);assert.equal(merged.menu_drafts[ctx.upcoming].friday.dishes[0].name,'מרק כרוב');assert.equal(merged.migration_conflicts.length,1);assert.deepEqual(merged.migration_conflicts[0].drive,s.menu_drafts[ctx.upcoming]);assert.deepEqual(mergeSiteExport(merged,data,ctx),merged);});
+
+test('meal type changes update dessert choices optimistically and persist independently per meal and date',()=>{
+ const s=base(),day='2026-10-10',meatCtx={...ctx,upcoming:day};
+ const initial=driveSnapshot(s,day,meatCtx);
+ const lunch=initial.current.lunch;
+ const dessertIndex=lunch.slot_categories.indexOf('dessert');
+ assert.equal(initial.current.week,3);
+ assert.equal(mealType('lunch',initial.current.week,lunch.meal_type),'meat');
+ assert.equal(mealType('friday',initial.current.week,initial.current.friday.meal_type),'dairy');
+ assert.equal(initial.candidates[`lunch:${dessertIndex}`].some(d=>d.name==='גלידה'),false);
+ const action={type:'set_meal_type',saturday:day,meal:'lunch',mealType:'dairy',revision:initial.revision};
+ const optimistic=projectAction(initial,action);
+ const choices=dishCandidates(initial.catalog,'lunch',initial.current.week,'dessert',optimistic.current.lunch.meal_type);
+ assert.ok(choices.some(d=>d.name==='גלידה'));
+ assert.ok(choices.some(d=>d.name==='טפיוקה'));
+ const saved=driveAction(s,action,'נעה',meatCtx);
+ const persisted=driveSnapshot(JSON.parse(JSON.stringify(saved.state)),day,meatCtx);
+ assert.deepEqual(persisted.current,optimistic.current);
+ assert.deepEqual(persisted.current.lunch.dishes,lunch.dishes);
+ assert.deepEqual(persisted.current.friday,initial.current.friday);
+ assert.equal(driveSnapshot(saved.state,ctx.upcoming,ctx).current.lunch.meal_type,undefined);
+ assert.ok(persisted.candidates[`lunch:${dessertIndex}`].some(d=>d.name==='גלידה'));
+ const replace={type:'replace',saturday:day,meal:'lunch',index:dessertIndex,dish:{name:'גלידה',category:'dessert'}};
+ const replaced=driveAction(saved.state,{...replace,revision:persisted.revision},'נעה',meatCtx);
+ const restored=driveAction(replaced.state,{...action,mealType:'meat',revision:replaced.response.snapshot.revision},'נעה',meatCtx);
+ assert.equal(restored.response.snapshot.current.lunch.dishes[dessertIndex].name,'גלידה');
+ assert.equal(restored.response.snapshot.candidates[`lunch:${dessertIndex}`].some(d=>d.name==='גלידה'),false);
+ assert.throws(()=>driveAction(restored.state,{...replace,revision:restored.response.snapshot.revision},'נעה',meatCtx),/אינה מתאימה/);
+});

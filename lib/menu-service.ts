@@ -27,7 +27,7 @@ async function snapshot(db:D1Database,saturday:string){
  const candidates:Record<string,Dish[]>={};
  for(const kind of ['friday','lunch'] as const)stored.menu[kind].dishes.forEach((dish,i)=>{
  const category=stored.menu[kind].slot_categories?.[i]||dish?.category||categories[kind][i]||'extra';
- candidates[`${kind}:${i}`]=cat.catalog.filter(d=>(category==='extra'||d.category===category)&&!used.has(normalized(d.name))&& mealAllows(d.diet,kind,stored.menu.week));
+ candidates[`${kind}:${i}`]=cat.catalog.filter(d=>(category==='extra'||d.category===category)&&!used.has(normalized(d.name))&& mealAllows(d.diet,kind,stored.menu.week,stored.menu[kind].meal_type));
  });
  const status=statusResult.results;
  return {api_version:6,status:'ready',current:stored.menu,revision:stored.revision,candidates,upcoming_saturday:upcomingSaturday(),has_menu:stored.exists,...cat,family_status:status};
@@ -39,7 +39,7 @@ export async function generateMenu(db:D1Database,base:Menu,actorName='אוטומ
  const selected=new Set<string>(), next=structuredClone(base),now=new Date().toISOString();
  const standard=new Set(Object.keys(defaultCategories));
  for(const kind of ['friday','lunch'] as const){next[kind].slot_categories=[...categories[kind]];next[kind].dishes=categories[kind].map(category=>{
- const available=catalog.filter(d=>mealAllows(d.diet,kind,next.week)&&!selected.has(normalized(d.name)));
+ const available=catalog.filter(d=>mealAllows(d.diet,kind,next.week,next[kind].meal_type)&&!selected.has(normalized(d.name)));
  // New/custom categories can participate in the flexible main slot, and any slot when its category runs out.
  const matches=available.filter(d=>d.category===category||(category==='main'&&(d.category==='extra'||!standard.has(d.category))));
  const pool=matches.filter(d=>!recent.has(normalized(d.name)));
@@ -57,7 +57,7 @@ export async function ensureUpcoming(db:D1Database,saturday:string){
  const cat=(await catalogSnapshot(db)).catalog,used=new Set([...stored.menu.friday.dishes,...stored.menu.lunch.dishes].filter(Boolean).map(d=>normalized(d!.name)));
  for(const kind of ['friday','lunch'] as const){
  if(!stored.menu[kind].dishes.some(d=>d?.category==='dessert')){
- const pool=cat.filter(d=>d.category==='dessert'&&mealAllows(d.diet,kind,stored.menu.week)),d=pool.find(d=>!used.has(normalized(d.name)))||pool[0];
+ const pool=cat.filter(d=>d.category==='dessert'&&mealAllows(d.diet,kind,stored.menu.week,stored.menu[kind].meal_type)),d=pool.find(d=>!used.has(normalized(d.name)))||pool[0];
  if(d){stored.menu[kind].dishes.push({name:d.name,category:'dessert',updated_by:'אוטומטית',updated_at:new Date().toISOString()});used.add(normalized(d.name));}
  }
  const rank=(d:Dish|null)=>d?.category==='dessert'?2:kind==='friday'&&d?.category==='soup'?0:1;
@@ -66,7 +66,7 @@ export async function ensureUpcoming(db:D1Database,saturday:string){
  }
  const mainIndex=stored.menu.lunch.dishes[3]?.category==='dip'&&stored.menu.lunch.dishes[3]?.updated_by==='אוטומטית'?3:-1;
  if(!stored.menu.approved&&!stored.menu.lunch.manual_order&&mainIndex>=0){
- const used=new Set([...stored.menu.friday.dishes,...stored.menu.lunch.dishes].filter(Boolean).map(d=>normalized(d!.name))),replacement=(await catalogSnapshot(db)).catalog.find(d=>d.category==='main'&&mealAllows(d.diet,'lunch',stored.menu.week)&&!used.has(normalized(d.name)));
+ const used=new Set([...stored.menu.friday.dishes,...stored.menu.lunch.dishes].filter(Boolean).map(d=>normalized(d!.name))),replacement=(await catalogSnapshot(db)).catalog.find(d=>d.category==='main'&&mealAllows(d.diet,'lunch',stored.menu.week,stored.menu.lunch.meal_type)&&!used.has(normalized(d.name)));
  if(replacement){stored.menu.lunch.dishes[mainIndex]={name:replacement.name,category:replacement.category,updated_by:'אוטומטית',updated_at:new Date().toISOString()};stored.menu.lunch.slot_categories||=stored.menu.lunch.dishes.map(d=>d?.category||'extra');stored.menu.lunch.slot_categories[mainIndex]=replacement.category;changed=true;}
  }
  if(changed){stored.menu.approved=false;delete stored.menu.approved_at;await db.prepare('UPDATE menus SET payload=?,revision=revision+1,updated_at=? WHERE saturday=? AND revision=?').bind(JSON.stringify(stored.menu),new Date().toISOString(),saturday,stored.revision).run();}
@@ -116,13 +116,13 @@ export async function postMenu(request:Request,db:D1Database){try{
  }
  commands.push(db.prepare('INSERT INTO activity (id,saturday,actor,description,created_at) VALUES (?,?,?,?,?)').bind(crypto.randomUUID(),action.saturday,name,action.type==='catalog_remove'?`הוסרה מהמאגר: ${action.oldName}`:action.type.startsWith('category')?'עודכנו קטגוריות המאגר':`עודכנה במאגר: ${action.dish?.name}`,now));await db.batch(commands);return json({detail:'המאגר עודכן.',snapshot:await snapshot(db,action.saturday)});
  }
- if(!['generate','replace','remove','add','approve','move'].includes(action.type))return json({detail:'פעולה לא מוכרת.'},400);
+ if(!['generate','replace','remove','add','approve','move','set_meal_type'].includes(action.type))return json({detail:'פעולה לא מוכרת.'},400);
  if(action.revision!==stored.revision)return json({detail:'התפריט עודכן ממקום אחר. יש לרענן לפני השמירה.'},409);
  let next:Menu;
  if(action.type==='generate'){
  if(action.saturday!==upcomingSaturday()||stored.menu.friday.dishes.length||stored.menu.lunch.dishes.length)throw Error('אפשר לבנות הצעה רק לשבת הקרובה כשאין בה תפריט.');
  next=await generateMenu(db,stored.menu,name);
- }else{if(action.dish){action.dish=await resolveDish(db,action.dish);if(action.meal&&!mealAllows(inferDiet(action.dish.name),action.meal,stored.menu.week))throw Error(action.meal==='friday'?'אי אפשר להוסיף מנה בשרית לארוחה חלבית.':'אי אפשר להוסיף מנה חלבית לארוחה בשרית.');}next=editMenu(stored.menu,{...action,actor:name});}
+ }else{if(action.dish){action.dish=await resolveDish(db,action.dish);if(action.meal&&!mealAllows(inferDiet(action.dish.name),action.meal,stored.menu.week,stored.menu[action.meal]?.meal_type))throw Error('המנה אינה מתאימה לארוחה בשרית או חלבית.');}next=editMenu(stored.menu,{...action,actor:name});}
  const oldDish=action.meal&&action.index!==undefined?stored.menu[action.meal].dishes[action.index]:null;
  const commands=[db.prepare('INSERT OR IGNORE INTO menus (saturday,payload,revision,updated_at) VALUES (?,?,0,?)').bind(action.saturday,JSON.stringify(stored.menu),now),db.prepare('UPDATE menus SET payload=?,revision=revision+1,updated_at=? WHERE saturday=? AND revision=?').bind(JSON.stringify(next),now,action.saturday,stored.revision)];
  // Dependent writes run only for the successful compare-and-swap payload.
@@ -130,7 +130,7 @@ export async function postMenu(request:Request,db:D1Database){try{
  const guardArgs=[action.saturday,stored.revision+1,JSON.stringify(next)];
  if(action.type==='remove'&&action.removeFromCatalog&&oldDish){commands.push(db.prepare(`INSERT OR IGNORE INTO excluded_dishes (name) SELECT ? WHERE ${guard}`).bind(normalized(oldDish.name),...guardArgs),db.prepare(`DELETE FROM catalog WHERE name=? AND ${guard}`).bind(oldDish.name,...guardArgs));}
  if(action.dish){commands.push(db.prepare(`INSERT INTO catalog (name,category,diet,updated_by,updated_at) SELECT ?,?,?,?,? WHERE ${guard} ON CONFLICT(name) DO UPDATE SET category=excluded.category,diet=excluded.diet,updated_by=excluded.updated_by,updated_at=excluded.updated_at`).bind(action.dish.name,action.dish.category,inferDiet(action.dish.name),name,now,...guardArgs),db.prepare(`DELETE FROM excluded_dishes WHERE name=? AND ${guard}`).bind(normalized(action.dish.name),...guardArgs));}
- const description=action.type==='remove'?`הוסרה מהתפריט: ${oldDish?.name}`:action.type==='move'?'עודכן סדר המנות':action.type==='generate'?'נבנתה הצעת תפריט':action.type==='approve'?'התפריט נשמר בהיסטוריה':`עודכנה מנה: ${action.dish?.name}`;
+ const description=action.type==='remove'?`הוסרה מהתפריט: ${oldDish?.name}`:action.type==='move'?'עודכן סדר המנות':action.type==='set_meal_type'?'עודכן סוג הארוחה':action.type==='generate'?'נבנתה הצעת תפריט':action.type==='approve'?'התפריט נשמר בהיסטוריה':`עודכנה מנה: ${action.dish?.name}`;
  commands.push(db.prepare(`INSERT INTO activity (id,saturday,actor,description,created_at) SELECT ?,?,?,?,? WHERE ${guard}`).bind(crypto.randomUUID(),action.saturday,name,description,now,...guardArgs));
  const results=await db.batch(commands);if(results[1].meta.changes!==1)return json({detail:'התפריט השתנה. יש לרענן ולנסות שוב.'},409);
  return json({detail:'השינוי נשמר.',snapshot:await snapshot(db,action.saturday)});
