@@ -24,10 +24,11 @@ export function initializeDrive(state:State,foods:string,ctx:Context){
  if(!state.dessert_seeded){state.food_categories.dessert||='מנה אחרונה';for(const name of ['עוגה','גלידה','טפיוקה','סלט פירות','פירות','פבלובה','עוגת יומולדת'])if(!state.dish_catalog.some((d:Dish)=>norm(d.name)===norm(name))&&!state.excluded_dishes.some((n:string)=>norm(n)===norm(name)))state.dish_catalog.push({name,category:'dessert',diet:inferDiet(name),updated_by:'',updated_at:''});state.dessert_seeded=true;}
  // Normalize unclassified dishes on every weekly load, without rewriting archives,
  // closed history, assignments, recipes or the family's manual order.
+ // Explicit selections of “מנות נוספות” are already classified.
  let classified=false;
  const categoryFor=(name:string)=>{const id=inferCategory(name);return state.food_categories[id]?id:state.food_categories.main?'main':Object.keys(state.food_categories).find(id=>id!=='extra')||'extra';};
  for(const list of [state.dish_catalog,state.manual_dishes,state.custom_dishes])for(const dish of list){
-  if(dish&&(dish.category==='extra'||dish.category==='auto'||!dish.category)){
+  if(dish&&((dish.category==='extra'&&!dish.category_explicit)||dish.category==='auto'||!dish.category)){
    const category=categoryFor(dish.name);if(category!==dish.category){dish.category=category;classified=true;}
   }
  }
@@ -36,7 +37,7 @@ export function initializeDrive(state:State,foods:string,ctx:Context){
   if(day<ctx.upcoming||state.shabbat_archive?.[day])continue;
   const menu=copy(original);let changed=false;
   for(const kind of ['friday','lunch'] as const)menu[kind].dishes.forEach((dish,index)=>{
-   if(!dish||dish.category!=='extra'&&dish.category!=='auto'&&dish.category) return;
+   if(!dish||(dish.category==='extra'?dish.category_explicit:dish.category&&dish.category!=='auto'))return;
    const category=categoryFor(dish.name);if(category===dish.category)return;
    dish.category=category;if(menu[kind].slot_categories)menu[kind].slot_categories![index]=category;changed=true;
   });
@@ -47,7 +48,7 @@ export function initializeDrive(state:State,foods:string,ctx:Context){
 const saved=(s:State,day:string):Menu|undefined=>s.menu_drafts[day]||s.history.find((m:Menu)=>m.saturday===day);
 const revision=(s:State,day:string)=>Number(s.menu_revisions[day]||0);
 function catalog(s:State){const blocked=new Set(s.excluded_dishes.map(norm));return s.dish_catalog.filter((d:Dish)=>!blocked.has(norm(d.name))).map((d:Dish)=>({...d,category:s.food_categories[d.category]?d.category:'extra',diet:inferDiet(d.name)})).sort((a:Dish,b:Dish)=>a.name.localeCompare(b.name,'he'));}
-function resolve(s:State,dish:Dish){const name=String(dish?.name||'').trim();check(name&&name.length<=100,'יש לכתוב שם מנה עד 100 תווים.');const id=dish.category&&dish.category!=='auto'?dish.category:inferCategory(name);const existing=s.dish_catalog.find((d:Dish)=>norm(d.name)===norm(name));const link=dish.recipe_url!==undefined?recipeUrl(dish.recipe_url):existing?.recipe_url;return {name,category:s.food_categories[id]?id:'extra',...(link!==undefined?{recipe_url:link}:{})};}
+function resolve(s:State,dish:Dish){const name=String(dish?.name||'').trim();check(name&&name.length<=100,'יש לכתוב שם מנה עד 100 תווים.');const id=dish.category&&dish.category!=='auto'?dish.category:inferCategory(name);const existing=s.dish_catalog.find((d:Dish)=>norm(d.name)===norm(name));const link=dish.recipe_url!==undefined?recipeUrl(dish.recipe_url):existing?.recipe_url;return {name,category:s.food_categories[id]?id:'extra',...(dish.category==='extra'&&s.food_categories.extra?{category_explicit:true as const}:{}),...(link!==undefined?{recipe_url:link}:{})};}
 function putDish(s:State,dish:Dish,actor:string,now:string){const row={...dish,diet:inferDiet(dish.name),updated_by:actor,updated_at:now};s.dish_catalog=s.dish_catalog.filter((d:Dish)=>norm(d.name)!==norm(row.name));s.dish_catalog.push(row);s.excluded_dishes=s.excluded_dishes.filter((n:string)=>norm(n)!==norm(row.name));s.manual_dishes=s.manual_dishes.filter((d:Dish)=>norm(d.name)!==norm(row.name));s.manual_dishes.push(copy(row));return row;}
 // Keep the one recipe per catalog dish in open menus, preserving closed Saturdays.
 function syncRecipe(s:State,dish:Dish,ctx:Context,except?:string){
@@ -64,7 +65,7 @@ function approveHistory(s:State,menu:Menu){s.history=s.history.filter((m:Menu)=>
 export function generateDriveMenu(s:State,day:string,ctx:Context,random=Math.random){
  const menu=emptyMenu(day,s.anchor_saturday,s.anchor_week),foods=catalog(s),used=new Set<string>();
  const recent=new Set(s.history.filter((m:Menu)=>m.saturday<day).sort((a:Menu,b:Menu)=>b.saturday.localeCompare(a.saturday)).slice(0,2).flatMap((m:Menu)=>[...m.friday.dishes,...m.lunch.dishes].filter(Boolean).map(d=>variant(d!.name))));
- for(const kind of ['friday','lunch'] as const){menu[kind].dishes=categories[kind].map(category=>{const available=foods.filter((d:any)=>mealAllows(d.diet,kind,menu.week)&&!used.has(norm(d.name)));const matches=available.filter((d:Dish)=>d.category===category||(category==='main'&&(d.category==='extra'||!defaultCategories[d.category])));const fresh=matches.filter((d:Dish)=>!recent.has(variant(d.name)));const fallback=category==='dessert'?[]:available.filter((d:Dish)=>d.category!=='dessert');const freshFallback=fallback.filter((d:Dish)=>!recent.has(variant(d.name)));const choices=fresh.length?fresh:matches.length?matches:freshFallback.length?freshFallback:fallback;const dish=choices[Math.min(choices.length-1,Math.floor(random()*choices.length))];if(!dish)return null;used.add(norm(dish.name));return {name:dish.name,category:dish.category,updated_by:'אוטומטית',updated_at:ctx.now,...(dish.recipe_url!==undefined?{recipe_url:dish.recipe_url}:{})};});menu[kind].slot_categories=menu[kind].dishes.map((d,i)=>d?.category||categories[kind][i]);}
+ for(const kind of ['friday','lunch'] as const){menu[kind].dishes=categories[kind].map(category=>{const available=foods.filter((d:any)=>mealAllows(d.diet,kind,menu.week)&&!used.has(norm(d.name)));const matches=available.filter((d:Dish)=>d.category===category||(category==='main'&&(d.category==='extra'||!defaultCategories[d.category])));const fresh=matches.filter((d:Dish)=>!recent.has(variant(d.name)));const fallback=category==='dessert'?[]:available.filter((d:Dish)=>d.category!=='dessert');const freshFallback=fallback.filter((d:Dish)=>!recent.has(variant(d.name)));const choices=fresh.length?fresh:matches.length?matches:freshFallback.length?freshFallback:fallback;const dish=choices[Math.min(choices.length-1,Math.floor(random()*choices.length))];if(!dish)return null;used.add(norm(dish.name));return {name:dish.name,category:dish.category,...(dish.category_explicit?{category_explicit:true as const}:{}),updated_by:'אוטומטית',updated_at:ctx.now,...(dish.recipe_url!==undefined?{recipe_url:dish.recipe_url}:{})};});menu[kind].slot_categories=menu[kind].dishes.map((d,i)=>d?.category||categories[kind][i]);}
  menu.approved=false;menu.layout_version=2;return menu;
 }
 export function driveSnapshot(s:State,day:string,ctx:Context,autoGenerate=true,compact=false){

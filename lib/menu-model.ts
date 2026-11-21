@@ -1,6 +1,6 @@
 import {recipeUrl} from './recipe-url.ts';
 import { family,inferCategory,type MealType } from './family.ts';
-export type Dish = { name: string; category: string; updated_by?: string; updated_at?: string; prepared_by?: string; recipe_url?: string };
+export type Dish = { name: string; category: string; category_explicit?: true; updated_by?: string; updated_at?: string; prepared_by?: string; recipe_url?: string };
 export type Meal = { date: string; dishes: (Dish | null)[]; slot_categories?: string[]; manual_order?: boolean; meal_type?: MealType };
 export type Menu = { saturday: string; week: 1 | 2 | 3; friday: Meal; lunch: Meal; sent?: boolean; approved?: boolean; approved_at?: string; layout_version?: number };
 export type Action = { compact?: boolean; viewed?: boolean; catalogRevision?: number; mutationId?: string; toIndex?: number; targetSaturday?: string; targetMeal?: 'friday'|'lunch'; responsible?: string; mealType?: MealType; type: 'set_meal_type' | 'transfer' | 'assign' | 'generate' | 'replace' | 'remove' | 'add' | 'approve' | 'move' | 'seen' | 'family_approve' | 'family_unapprove' | 'archive_completed' | 'catalog_save' | 'catalog_remove' | 'category_save' | 'category_remove'; saturday: string; meal?: 'friday' | 'lunch'; index?: number; dish?: Dish; removeFromCatalog?: boolean; category?: string; revision?: number; actor?: string; diet?: string; oldName?: string; id?: string; label?: string };
@@ -65,6 +65,7 @@ export function editMenu(source: Menu, action: Action): Menu {
     if (!name || name.length > 100) throw Error('כתבי שם מנה עד 100 תווים.');
     const category = action.dish?.category && action.dish.category !== 'auto' ? action.dish.category : inferCategory(name);
     const dish: Dish = {name,category,updated_by:action.actor,updated_at:new Date().toISOString()};
+    if(category==='extra'&&action.dish?.category_explicit)dish.category_explicit=true;
     if(action.dish?.recipe_url!==undefined)dish.recipe_url=recipeUrl(action.dish.recipe_url);
     else if(action.type==='replace'&&meal.dishes[index]?.name===name&&meal.dishes[index]?.recipe_url)dish.recipe_url=meal.dishes[index]!.recipe_url;
     if(action.responsible!==undefined){if(action.responsible!==''&&!family.includes(action.responsible as any))throw Error('יש לבחור בן משפחה.');if(action.responsible)dish.prepared_by=action.responsible;}
