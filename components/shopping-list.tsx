@@ -1,6 +1,7 @@
 'use client';
 import {ShoppingCategorySelect} from '@/components/category-creator';
 import {apiFetch} from '@/lib/google-transport';
+import {useAppBack} from '@/components/app-back';
 import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {ListPlus,Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
 import {allShoppingCategories,shoppingName,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
@@ -62,6 +63,8 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   const ok=await act({type:'shopping_add',name,category,quantity,rememberCategory:true,skipExisting:true});
   if(mounted.current){if(ok){setName(value=>value===submitted?'':value);setQuantity(value=>value===submittedQuantity?'':value);}setAdding(false);}
  };
+ useAppBack(showAdd,1,()=>setShowAdd(false),adding);
+ useAppBack(!!moving||clearConfirm,2,()=>{if(clearConfirm)setClearConfirm(false);else setMoving(null);});
  const shoppingCategories=allShoppingCategories(snapshot?.shopping);
  const createCategory=(id:string,label:string)=>act({type:'shopping_category_add',id,label});
  const data=snapshot?.shopping,products=data?.products||[],items=data?.items||[];

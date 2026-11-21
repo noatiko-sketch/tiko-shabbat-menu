@@ -1,4 +1,5 @@
 'use client';
+import {AppBackButton} from '@/components/app-back';
 import {ShoppingCategorySelect,type CreateCategory} from '@/components/category-creator';
 import {useState} from 'react';
 import {LoaderCircle,Plus,X} from 'lucide-react';
@@ -12,7 +13,7 @@ export function ShoppingDefaults({categories=defaultCategories,onCreateCategory,
  const [adding,setAdding]=useState(false),[name,setName]=useState(''),[category,setCategory]=useState<ShoppingCategory>('general');
  const choices=defaultShoppingChoices(products,defaultProductIds);
  const chosen=choices.filter(product=>selected.includes(product.id));
- const changeOpen=(value:boolean)=>{setOpen(value);if(!value){setSelected([]);setError('');}};
+ const changeOpen=(value:boolean)=>{setOpen(value);if(!value){setSelected([]);setError('');setAdding(false);}};
  return <Dialog open={open} onOpenChange={changeOpen}>
   <DialogTrigger asChild><button type="button" className="shopping-defaults-trigger">מהרשימה הקבועה <Plus size={17}/></button></DialogTrigger>
   <DialogContent className="shopping-default-modal" dir="rtl" showCloseButton={false} aria-describedby={undefined}>
@@ -43,7 +44,7 @@ export function ShoppingDefaults({categories=defaultCategories,onCreateCategory,
     })}
     {choices.length===0&&<p className="shopping-hint">הרשימה הקבועה ריקה</p>}
    </div>
-   <footer className="shopping-default-modal-footer"><button className="shopping-primary" type="button" disabled={saving||!chosen.length} onClick={async()=>{
+   <footer className="shopping-default-modal-footer"><AppBackButton disabled={saving} onBack={()=>{if(adding)setAdding(false);else changeOpen(false);}}/><button className="shopping-primary" type="button" disabled={saving||!chosen.length} onClick={async()=>{
     setSaving(true);setError('');
     try{if(await onAdd(chosen.map(p=>({name:p.name,category:p.category,quantity:''})))){changeOpen(false);}else setError('המוצרים לא נשמרו. אפשר לנסות שוב.');}finally{setSaving(false);}
    }}>{saving?'שומרים…':`הוסף את המוצרים הנבחרים${chosen.length?` (${chosen.length})`:''}`}</button></footer>
