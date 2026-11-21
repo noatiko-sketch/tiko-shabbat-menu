@@ -36,8 +36,8 @@
 .shopping-default-choice.is-selected {background:#edf3e7}
 .shopping-default-choice input {width:22px;height:22px;accent-color:#61724c;flex-shrink:0}
 .shopping-default-choice span {flex:1;overflow-wrap:anywhere}
-.shopping-default-modal-footer {padding:12px 20px;border-top:1px solid #d8dfd0;background:var(--background,#fffdf8);box-shadow:0 -5px 18px #163f3210;z-index:1}
-.shopping-default-modal-footer .shopping-primary {width:100%;min-height:52px;font-size:16px}
+.shopping-default-modal-footer {display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 20px;border-top:1px solid #d8dfd0;background:var(--background,#fffdf8);box-shadow:0 -5px 18px #163f3210;z-index:1}
+.shopping-default-modal-footer .shopping-primary {flex:1;min-width:0;min-height:52px;font-size:16px}
 .shopping-default-pin.is-pinned {background:#e5eed9;color:#315c40}
 .shopping-default-modal .shopping-remove {min-width:44px;min-height:44px;flex-shrink:0}
 

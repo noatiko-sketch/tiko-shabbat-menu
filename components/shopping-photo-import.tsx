@@ -1,4 +1,5 @@
 'use client';
+import {useAppBack} from '@/components/app-back';
 import {ShoppingCategorySelect,type CreateCategory} from '@/components/category-creator';
 import {apiFetch} from '@/lib/google-transport';
 import {useEffect,useRef,useState,type ChangeEvent} from 'react';
@@ -13,6 +14,10 @@ export function ShoppingPhotoImport({categories=defaultCategories,onCreateCatego
  const camera=useRef<HTMLInputElement>(null),gallery=useRef<HTMLInputElement>(null),version=useRef(0),mounted=useRef(true),flight=useRef<AbortController|null>(null),manualId=useRef(0);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;version.current++;flight.current?.abort();};},[]);
  const cancel=()=>{version.current++;flight.current?.abort();setImage('');setRows(null);setWarning('');setError('');setPreparing(false);setScanning(false);};
+ useAppBack(!!image||preparing,2,()=>{
+  if(rows){setRows(null);setWarning('');setError('');}
+  else cancel();
+ },importing);
  const choose=async(event:ChangeEvent<HTMLInputElement>)=>{
   const file=event.target.files?.[0];event.target.value='';if(!file)return;
   const attempt=++version.current;flight.current?.abort();setPreparing(true);setScanning(false);setError('');setSuccess('');setRows(null);setImage('');setWarning('');

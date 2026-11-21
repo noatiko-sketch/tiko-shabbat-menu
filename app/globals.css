@@ -79,3 +79,46 @@
   font-size: 13px;
   margin-top: 4px;
 }
+
+.site {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+.app-back-bar {
+  position: fixed;
+  z-index: 45;
+  inset: auto 0 0;
+  display: grid;
+  place-items: center;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #d6dfcb;
+  background: #fffdf8;
+}
+.app-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 104px;
+  padding: 6px 18px;
+  border: 1px solid #adbea1;
+  border-radius: 12px;
+  background: #edf1e2;
+  color: #294f37;
+  font-size: 16px;
+  font-weight: 600;
+}
+.app-back-button:hover:not(:disabled) {
+  background: #dfead1;
+}
+.app-back-button:focus-visible {
+  outline: 2px solid #3d6540;
+  outline-offset: 2px;
+}
+.profile-back {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  justify-items: center;
+}
