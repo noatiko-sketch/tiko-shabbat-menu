@@ -60,7 +60,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
  };
  const submit=async(event:FormEvent)=>{
   event.preventDefault();if(adding)return;setAdding(true);const submitted=name,submittedQuantity=quantity;
-  const ok=await act({type:'shopping_add',name,category,quantity,rememberCategory:true,skipExisting:true});
+  const ok=await act({type:'shopping_add',name,category,quantity,rememberCategory:true});
   if(mounted.current){if(ok){setName(value=>value===submitted?'':value);setQuantity(value=>value===submittedQuantity?'':value);}setAdding(false);}
  };
  useAppBack(showAdd,1,()=>setShowAdd(false),adding);
@@ -111,7 +111,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
      </form>
      <details className="shopping-catalog"><summary>מהמאגר <span>{products.length}</span><ChevronDown size={17}/></summary>
       {products.length===0?<p className="shopping-hint">המאגר ריק</p>:<><label className="shopping-search"><Search size={17}/><input aria-label="חיפוש מוצר במאגר" value={search} onChange={e=>setSearch(e.target.value)} placeholder="איזה מוצר להוסיף?"/></label><select aria-label="סינון המאגר לפי קטגוריה" value={filter} onChange={e=>setFilter(e.target.value)}><option value="">כל הקטגוריות</option>{Object.entries(shoppingCategories).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
-       {catalog.length===0?<p className="shopping-hint">לא נמצאו מוצרים</p>:Object.entries(shoppingCategories).map(([id,label])=>{const group=catalog.filter(p=>p.category===id);return group.length>0&&<div className="shopping-catalog-group" key={id}><h3>{label}</h3>{group.map(product=>{const active=items.find(i=>i.productId===product.id);return <div className="shopping-catalog-entry" key={product.id}><div><button type="button" onClick={()=>void act({type:'shopping_add',productId:product.id,skipExisting:true})} aria-label={`הוספת ${product.name} לרשימה`}><span>{product.name}</span>{active&&!active.bought?<small><Check size={14}/> ברשימה</small>:<Plus size={17}/>}</button>{moveButton(product,'catalog')}{defaultButton(product)}</div>{categoryEditor(product,'catalog')}</div>;})}</div>;})}</>}
+       {catalog.length===0?<p className="shopping-hint">לא נמצאו מוצרים</p>:Object.entries(shoppingCategories).map(([id,label])=>{const group=catalog.filter(p=>p.category===id);return group.length>0&&<div className="shopping-catalog-group" key={id}><h3>{label}</h3>{group.map(product=>{const active=items.find(i=>i.productId===product.id);return <div className="shopping-catalog-entry" key={product.id}><div><button type="button" onClick={()=>void act({type:'shopping_add',productId:product.id})} aria-label={`הוספת ${product.name} לרשימה`}><span>{product.name}</span>{active&&!active.bought?<small><Check size={14}/> ברשימה</small>:<Plus size={17}/>}</button>{moveButton(product,'catalog')}{defaultButton(product)}</div>{categoryEditor(product,'catalog')}</div>;})}</div>;})}</>}
      </details>
     </aside>}</div>
    </>}
