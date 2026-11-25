@@ -36,7 +36,7 @@ export function DishEditor({current,candidates,busy,error,onSave,onCancel,transf
       </button>
      </PopoverTrigger>
      <PopoverContent className="dish-picker" align="start" dir="rtl">
-      <Command label={pickerLabel}>
+      <Command label={pickerLabel} filter={(name,query)=>name.toLowerCase().startsWith(query.trim().toLowerCase())?1:0}>
        <CommandInput placeholder={searchAll?'חיפוש בכל המאגר…':'חיפוש מנה…'} aria-label={searchAll?pickerLabel:adding?'חיפוש מנה להוספה':'חיפוש מנה להחלפה'}/>
        <CommandList>
         <CommandEmpty>לא נמצאו מנות מתאימות.</CommandEmpty>
