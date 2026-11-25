@@ -21,6 +21,25 @@ test('migration preserves Drive conflicts and exclusions while importing new Sit
 test('bundled Apps Script executes the same engine without Node or structuredClone built-in',()=>{const context=vm.createContext({console});vm.runInContext(fs.readFileSync(new URL('../google/Code.gs',import.meta.url),'utf8'),context);context.input=JSON.stringify(base());const result=vm.runInContext(`JSON.stringify(TikoDrive.driveSnapshot(JSON.parse(input),'2026-10-24',{upcoming:'2026-10-24',now:'2026-10-19T19:00:00Z'}))`,context);assert.equal(JSON.parse(result).storage,'google-drive');});
 const config={TIKO_BRIDGE_URL:'https://script.google.com/macros/s/deployment/exec',TIKO_BRIDGE_TOKEN:'x'.repeat(48)};
 const request=()=>new Request('https://site.test/api/menu',{headers:{'x-family-member':encodeURIComponent('נעה')}});
+test('existing family cholent is pareve and can be added to dairy and meat meals',()=>{
+ const dish={name:'חמין',category:'main'};
+ const meatDish={...dish,name:'חמין עם בשר'};
+ for(const type of ['dairy','meat']){
+  const state=base();
+  state.dish_catalog.push({...dish,diet:'meat'},{...meatDish,diet:'meat'});
+  const {state:ready,response:{snapshot}}=run(state,{type:'set_meal_type',meal:'friday',mealType:type});
+  assert.equal(snapshot.catalog.find(d=>d.name===dish.name).diet,'pareve');
+  const choices=dishCandidates(snapshot.catalog,'friday',snapshot.current.week,undefined,type);
+  assert.ok(choices.some(d=>d.name===dish.name));
+  assert.equal(choices.some(d=>d.name===meatDish.name),type==='meat');
+  const action={type:'add',meal:'friday',dish};
+  const projected=projectAction(snapshot,{...action,saturday:ctx.upcoming,actor:'נעה'});
+  const saved=run(ready,action).response.snapshot;
+  assert.ok(projected.current.friday.dishes.some(d=>d?.name===dish.name));
+  assert.ok(saved.current.friday.dishes.some(d=>d?.name===dish.name));
+  if(type==='dairy')assert.throws(()=>run(ready,{...action,dish:meatDish}),/אינה מתאימה/);
+ }
+});
 test('proxy validates the exact Drive database and never falls back to another database',async()=>{let body;const valid={storage:'google-drive',state_id:'1wc9VbyXuLl9QTWVPLUYiU1vUQjz1vmZI',status:'ready'};const good=await proxyDriveMenu(request(),config,async(_,options)=>{body=JSON.parse(options.body);return Response.json(valid);});assert.equal(good.status,200);assert.equal(body.actor,'נעה');assert.equal(body.token,config.TIKO_BRIDGE_TOKEN);assert.equal((await proxyDriveMenu(request(),config,async()=>Response.json({...valid,state_id:'different'}))).status,503);assert.equal((await proxyDriveMenu(request(),{})).status,503);assert.equal((await proxyDriveMenu(request(),config,async()=>{throw Error('offline');})).status,503);});
 test('proxy preserves stale-edit failures and rejects cross-origin writes',async()=>{const conflict=await proxyDriveMenu(request(),config,async()=>Response.json({http_status:409,detail:'stale'}));assert.equal(conflict.status,409);const cross=new Request('https://site.test/api/menu',{method:'POST',headers:{origin:'https://other.test','x-family-member':encodeURIComponent('נעה')},body:'{}'});assert.equal((await proxyDriveMenu(cross,config)).status,403);});
 

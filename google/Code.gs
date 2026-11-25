@@ -3254,6 +3254,9 @@ function inferCategory(name) {
     return 'main';
 }
 function inferDiet(name) {
+    // The family's catalog entry named "חמין" is pareve.
+    if (name.trim() === 'חמין')
+        return 'pareve';
     const text = name.replace(/ללא (?:בשר|עוף|חלב|גבינה|גבינות|שמנת)|בלי (?:בשר|עוף|חלב|גבינה|גבינות|שמנת)|חלב (?:קוקוס|שקדים|סויה|שיבולת שועל)|שמנת צמחית/g, '');
     const vegetarian = /צמחוני|טבעוני/.test(text) && !/לא צמחוני/.test(text);
     const meat = /בשר|עוף|פרגי|שניצלים|חמין|בולונז|קבב|בקר|הודו|טלה|נקניק|פסטרמה/.test(text) && !vegetarian && !/שניצלוני תירס|נקניקיות ופתיתים/.test(text);

@@ -79,6 +79,7 @@
   font-size: 13px;
   margin-top: 4px;
 }
+.dish-picker [data-slot=command-item][data-disabled=true] { opacity: 1; }
 
 .site {
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
