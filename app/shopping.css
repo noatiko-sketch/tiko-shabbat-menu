@@ -27,7 +27,9 @@
 .shopping-default-modal-title h2 {font-size:24px;line-height:1.4}
 .shopping-default-add {display:flex;align-items:center;gap:6px;min-height:44px;color:#46664d;font:inherit}
 .shopping-default-form {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:8px}
-.shopping-default-form > button {grid-column:1/-1}
+.shopping-default-form > button,.shopping-default-form > .shopping-category-products {grid-column:1/-1}
+.shopping-default-form > .shopping-category-products {margin:0}
+.shopping-default-form > .shopping-category-products ul {max-height:128px}
 .shopping-default-modal-body {overflow-y:auto;overscroll-behavior:contain;padding:16px 20px;min-height:0}
 .shopping-default-modal-body fieldset {border:0;padding:0;margin:0 0 24px;min-width:0}
 .shopping-default-modal-body legend {font-weight:700;font-size:16px;padding:8px 0;width:100%;border-bottom:1px solid #d8dfd0;margin-bottom:6px}
