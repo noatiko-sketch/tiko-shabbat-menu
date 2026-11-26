@@ -47,7 +47,7 @@ function Connection({children}:{children:React.ReactNode}){
     <DialogTitle>לצאת מהאפליקציה?</DialogTitle>
     <DialogFooter className="flex-row justify-end">
      <Button type="button" className="min-h-11" variant="outline" ref={stayButton} onClick={()=>setExit(null)}>להישאר</Button>
-     <Button type="button" className="min-h-11" onClick={()=>void confirmExit()}>יציאה</Button>
+     <Button type="button" className="min-h-11" onClick={()=>void confirmExit()}>אפשר יציאה</Button>
     </DialogFooter>
    </DialogContent>
   </Dialog>
