@@ -59,3 +59,32 @@ test('confirming Back in a standalone window releases the final history entry',(
  assert.equal(attempts,2);
  guard.dispose();
 });
+
+test('Android Back before the first interaction requests confirmation without adding a history entry',()=>{
+ const browser=browserHistory([null]);
+ let activeWatcher;
+ browser.CloseWatcher=class extends EventTarget {
+  constructor(){super();activeWatcher=this;}
+  destroy(){if(activeWatcher===this)activeWatcher=undefined;}
+ };
+ const userActivation={hasBeenActive:false};
+ browser.navigator={userAgent:'Android',userActivation};
+ let attempts=0;
+ const guard=protectAppBack(browser,()=>attempts++,()=>{});
+ const androidBack=()=>{
+  const watcher=activeWatcher;
+  watcher.destroy();
+  watcher.dispatchEvent(new Event('close'));
+ };
+ androidBack();
+ androidBack();
+ assert.equal(attempts,2);
+ assert.equal(browser.history.length,1);
+ userActivation.hasBeenActive=true;
+ browser.interact();
+ assert.equal(activeWatcher,undefined);
+ assert.equal(browser.history.length,2);
+ assert.equal(guard.leave(),false);
+ assert.equal(browser.index,0);
+ guard.dispose();
+});
