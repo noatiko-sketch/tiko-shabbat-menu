@@ -6,16 +6,16 @@ import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {ListPlus,Check,ChevronDown,LoaderCircle,Pencil,Plus,Search,ShoppingCart,Trash2,X} from 'lucide-react';
 import {allShoppingCategories,shoppingName,type ShoppingAction,type ShoppingCategory,type ShoppingProduct,type ShoppingSnapshot} from '@/lib/shopping';
 import {confirmShoppingAddition} from '@/lib/shopping-addition';
-import {shoppingCategoryProducts} from '@/lib/shopping-category-products';
+import {ALL_SHOPPING_PRODUCTS,shoppingCategoryProducts} from '@/lib/shopping-category-products';
 import {ShoppingPhotoImport} from '@/components/shopping-photo-import';
 import {ShoppingDefaults} from '@/components/shopping-defaults';
 import {ShoppingMutations,acceptShoppingMutation} from '@/lib/shopping-mutations';
 
 export function ShoppingList({person,onSavingChange}:{person:string;onSavingChange:(saving:boolean)=>void}){
  const [snapshot,setSnapshot]=useState<ShoppingSnapshot|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('');
- const [name,setName]=useState(''),[category,setCategory]=useState<ShoppingCategory>('general'),[quantity,setQuantity]=useState(''),[adding,setAdding]=useState(false),[showAdd,setShowAdd]=useState(false);
+ const [name,setName]=useState(''),[category,setCategory]=useState<ShoppingCategory>(ALL_SHOPPING_PRODUCTS),[quantity,setQuantity]=useState(''),[adding,setAdding]=useState(false),[showAdd,setShowAdd]=useState(false);
  const [search,setSearch]=useState(''),[filter,setFilter]=useState(''),[clearConfirm,setClearConfirm]=useState(false),[moving,setMoving]=useState<string|null>(null);
- const [categoryChosen,setCategoryChosen]=useState(false);
+ const [selectedProductId,setSelectedProductId]=useState<string|null>(null);
  const snapshotRef=useRef(snapshot),pending=useRef(false),version=useRef(0),mounted=useRef(true),flight=useRef<AbortController|null>(null);
  snapshotRef.current=snapshot;
  const queue=useRef<ShoppingMutations|null>(null);
@@ -60,15 +60,21 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
  };
  const submit=async(event:FormEvent)=>{
   event.preventDefault();if(adding)return;setAdding(true);const submitted=name,submittedQuantity=quantity;
-  const ok=await act({type:'shopping_add',name,category,quantity,rememberCategory:true,skipExisting:true});
-  if(mounted.current){if(ok){setName(value=>value===submitted?'':value);setQuantity(value=>value===submittedQuantity?'':value);}setAdding(false);}
+  const allProducts=category===ALL_SHOPPING_PRODUCTS;
+  const products=snapshotRef.current?.shopping.products||[];
+  const product=products.find(p=>p.id===selectedProductId)
+   ||products.find(p=>(allProducts||p.category===category)&&shoppingName(p.name)===shoppingName(name));
+  const ok=await act(product
+   ?{type:'shopping_add',productId:product.id,quantity}
+   :{type:'shopping_add',name,category:allProducts?'general':category,quantity,rememberCategory:!allProducts});
+  if(mounted.current){if(ok){setName(value=>value===submitted?'':value);setQuantity(value=>value===submittedQuantity?'':value);setSelectedProductId(value=>value===selectedProductId?null:value);}setAdding(false);}
  };
  useAppBack(showAdd,1,()=>setShowAdd(false),adding);
  useAppBack(!!moving||clearConfirm,2,()=>{if(clearConfirm)setClearConfirm(false);else setMoving(null);});
  const shoppingCategories=allShoppingCategories(snapshot?.shopping);
  const createCategory=(id:string,label:string)=>act({type:'shopping_category_add',id,label});
  const data=snapshot?.shopping,products=data?.products||[],items=data?.items||[];
- const categoryProducts=categoryChosen?shoppingCategoryProducts(products,category,name):[];
+ const categoryProducts=showAdd?shoppingCategoryProducts(products,category,name):[];
  const remaining=items.filter(i=>!i.bought),bought=items.filter(i=>i.bought),byId=new Map(products.map(p=>[p.id,p]));
  const catalog=products.filter(p=>(!filter||p.category===filter)&&p.name.includes(search.trim())).sort((a,b)=>a.name.localeCompare(b.name,'he'));
  const categoryEditor=(product:ShoppingProduct,scope='active')=>moving===`${scope}:${product.id}`&&<div className="shopping-category-editor"><label>קטגוריה של {product.name}<ShoppingCategorySelect label={`קטגוריה של ${product.name}`} value={product.category} categories={shoppingCategories} onCreate={createCategory} onChange={category=>{setMoving(null);void act({type:'shopping_recategorize',productId:product.id,category});}}/></label><button type="button" onClick={()=>setMoving(null)}>סגירה</button></div>;
@@ -79,7 +85,7 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
   {moveButton(product)}<button className="shopping-remove" type="button" aria-label={`הסרת ${product.name} מהרשימה`} onClick={()=>void act({type:'shopping_remove',productId:product.id})}><X size={17}/></button>{defaultButton(product)}{categoryEditor(product)}
  </li>;
  return <section className="shopping" aria-label="רשימת קניות">
-  <header className="shopping-compact-header"><h1>רשימת קניות{snapshot&&<span className="shopping-count" aria-label={`${remaining.length} מוצרים לקנייה`}>{remaining.length}</span>}</h1>{person&&snapshot&&<button type="button" className="shopping-add-trigger" aria-expanded={showAdd} aria-controls="shopping-add-panel" onClick={()=>setShowAdd(value=>!value)}>{showAdd?<X size={19}/>:<Plus size={19}/>} {showAdd?'סגירה':'הוספה'}</button>}</header>
+  <header className="shopping-compact-header"><h1>רשימת קניות{snapshot&&<span className="shopping-count" aria-label={`${remaining.length} מוצרים לקנייה`}>{remaining.length}</span>}</h1>{person&&snapshot&&<button type="button" className="shopping-add-trigger" aria-expanded={showAdd} aria-controls="shopping-add-panel" onClick={()=>{if(!showAdd){setCategory(ALL_SHOPPING_PRODUCTS);setSelectedProductId(null);}setShowAdd(!showAdd);}}>{showAdd?<X size={19}/>:<Plus size={19}/>} {showAdd?'סגירה':'הוספה'}</button>}</header>
   {!person?<p className="shopping-empty">יש לבחור בן משפחה למעלה כדי לפתוח את רשימת הקניות.</p>:<>
    {error&&<div className="shopping-error" role="alert"><p>{error}</p><button type="button" disabled={saving} onClick={()=>{setError('');void refresh();}}>טעינה מחדש</button></div>}
    {loading&&!snapshot?<p className="shopping-loading" role="status"><LoaderCircle className="spin" size={20}/>טוענים את הרשימה המשפחתית…</p>:!snapshot?<p className="shopping-empty">הרשימה אינה זמינה כרגע. אפשר לנסות שוב באמצעות טעינה מחדש.</p>:<>
@@ -101,12 +107,11 @@ export function ShoppingList({person,onSavingChange}:{person:string;onSavingChan
     </div>{showAdd&&<aside id="shopping-add-panel" className="shopping-add-panel" aria-label="הוספת מוצרים">
      <h2 className="sr-only">הוספת מוצרים</h2>
      <ShoppingDefaults categories={shoppingCategories} onCreateCategory={createCategory} pending={saving} saveError={error} products={products} defaultProductIds={data?.defaultProductIds||[]} onSave={product=>act({type:'shopping_default_save',...product},true)} onRemove={name=>act({type:'shopping_default_remove',name},true)} onAdd={items=>act({type:'shopping_import',items,skipExisting:true},true)}/>
-     <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{const value=e.target.value;setName(value);if(!categoryChosen)setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}} maxLength={100} required placeholder="שם המוצר"/></label>
-      <div className="shopping-form-pair"><label>קטגוריה<ShoppingCategorySelect value={category} onChange={value=>{setCategory(value);setCategoryChosen(true);}} categories={shoppingCategories} onCreate={createCategory} disabled={saving}/></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
-      {categoryChosen&&<section className="shopping-category-products" aria-label={`מוצרים מהמאגר בקטגוריה ${shoppingCategories[category]}`}>
-       <p className="shopping-hint">מוצרים מהמאגר בקטגוריה {shoppingCategories[category]} — אפשר לבחור או להקליד מוצר חדש</p>
-       {categoryProducts.length?<ul>{categoryProducts.map(product=><li key={product.id}><button type="button" aria-pressed={name===product.name} onClick={()=>setName(product.name)}>{product.name}</button></li>)}</ul>:<p className="shopping-hint" role="status">{name.trim()?'לא נמצאו מוצרים מתאימים בקטגוריה זו':'עדיין אין מוצרים במאגר בקטגוריה זו'}</p>}
-      </section>}
+     <form onSubmit={submit} className="shopping-form"><label>שם המוצר<input autoFocus autoComplete="off" value={name} onChange={e=>{setName(e.target.value);setSelectedProductId(null);}} maxLength={100} required placeholder="שם המוצר"/></label>
+      <div className="shopping-form-pair"><label>קטגוריה<ShoppingCategorySelect value={category} onChange={value=>{setCategory(value);setSelectedProductId(null);}} categories={{[ALL_SHOPPING_PRODUCTS]:'הכל',...shoppingCategories}} onCreate={createCategory} disabled={saving}/></label><label>כמות <small>(לא חובה)</small><input value={quantity} onChange={e=>setQuantity(e.target.value)} maxLength={60} placeholder={'כמות'}/></label></div>
+      <section className="shopping-category-products" aria-label="הצעות מהמאגר">
+       {categoryProducts.length?<ul>{categoryProducts.map(product=><li key={product.id}><button type="button" aria-pressed={selectedProductId===product.id} onClick={()=>{setName(product.name);setSelectedProductId(product.id);}}>{product.name}</button></li>)}</ul>:<p className="shopping-hint" role="status">{name.trim()?'לא נמצאו מוצרים מתאימים':'אין מוצרים להצגה'}</p>}
+      </section>
       <button className="shopping-primary" type="submit" disabled={adding||!name.trim()}>{adding?<LoaderCircle className="spin" size={18}/>:<Plus size={18}/>} הוספה</button>
      </form>
      <details className="shopping-catalog"><summary>מהמאגר <span>{products.length}</span><ChevronDown size={17}/></summary>

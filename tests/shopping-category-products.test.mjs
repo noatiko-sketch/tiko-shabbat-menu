@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {shoppingCategoryProducts} from '../lib/shopping-category-products.ts';
+import {ALL_SHOPPING_PRODUCTS,shoppingCategoryProducts} from '../lib/shopping-category-products.ts';
 import {editShopping,readShopping} from '../lib/shopping.ts';
 
 test('category-first suggestions include the full catalog even after bought items are cleared',()=>{
@@ -13,6 +13,9 @@ test('category-first suggestions include the full catalog even after bought item
  assert.equal(state.items.length,0);
  const before=structuredClone(state.products);
  assert.deepEqual(shoppingCategoryProducts(state.products,'dairy').map(p=>p.name),['גבינה','חלב']);
+ assert.deepEqual(shoppingCategoryProducts(state.products,ALL_SHOPPING_PRODUCTS).map(p=>p.name),['גבינה','חלב','לחם']);
+ assert.deepEqual(shoppingCategoryProducts(state.products,ALL_SHOPPING_PRODUCTS,'לח').map(p=>p.name),['לחם']);
+ assert.deepEqual(shoppingCategoryProducts(state.products,'dairy','לח'),[]);
  assert.deepEqual(state.products,before);
 });
 
