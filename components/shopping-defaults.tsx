@@ -6,6 +6,7 @@ import {LoaderCircle,Plus,X} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogTrigger} from '@/components/ui/dialog';
 import {shoppingCategories as defaultCategories,shoppingName,type ShoppingCategory,type ShoppingProduct,type ShoppingImportItem} from '@/lib/shopping';
 import {defaultShoppingChoices} from '@/lib/shopping-defaults';
+import {ALL_SHOPPING_PRODUCTS,shoppingCategoryProducts} from '@/lib/shopping-category-products';
 
 type DefaultProduct={name:string;category:ShoppingCategory};
 export function ShoppingDefaults({categories=defaultCategories,onCreateCategory,products,defaultProductIds=[],pending=false,saveError='',onAdd,onSave,onRemove}:{categories?:Record<string,string>;onCreateCategory?:CreateCategory;products:ShoppingProduct[];defaultProductIds?:string[];pending?:boolean;saveError?:string;onAdd:(items:ShoppingImportItem[])=>Promise<boolean>;onSave:(product:DefaultProduct)=>Promise<boolean>;onRemove:(name:string)=>Promise<boolean>}){
@@ -13,6 +14,7 @@ export function ShoppingDefaults({categories=defaultCategories,onCreateCategory,
  const [adding,setAdding]=useState(false),[name,setName]=useState(''),[category,setCategory]=useState<ShoppingCategory>('general');
  const choices=defaultShoppingChoices(products,defaultProductIds);
  const chosen=choices.filter(product=>selected.includes(product.id));
+ const suggestions=adding&&name.trim()?shoppingCategoryProducts(products,ALL_SHOPPING_PRODUCTS,name):[];
  const changeOpen=(value:boolean)=>{setOpen(value);if(!value){setSelected([]);setError('');setAdding(false);}};
  return <Dialog open={open} onOpenChange={changeOpen}>
   <DialogTrigger asChild><button type="button" className="shopping-defaults-trigger">מהרשימה הקבועה <Plus size={17}/></button></DialogTrigger>
@@ -25,6 +27,9 @@ export function ShoppingDefaults({categories=defaultCategories,onCreateCategory,
     }}>
      <label>שם המוצר<input autoFocus required maxLength={100} value={name} disabled={saving} onChange={event=>{const value=event.target.value;setName(value);setCategory(products.find(p=>shoppingName(p.name)===shoppingName(value))?.category||'general');}}/></label>
      <label>קטגוריה<ShoppingCategorySelect value={category} onChange={setCategory} categories={categories} onCreate={onCreateCategory} disabled={saving}/></label>
+     {suggestions.length>0&&<section className="shopping-category-products" aria-label="הצעות מהמאגר">
+      <ul>{suggestions.map(product=><li key={product.id}><button type="button" disabled={saving} aria-pressed={name===product.name&&category===product.category} onClick={()=>{setName(product.name);setCategory(product.category);}}>{product.name}</button></li>)}</ul>
+     </section>}
      <button className="shopping-primary" disabled={saving||!name.trim()} type="submit">שמירה ברשימה הקבועה</button>
     </form>}
     {pending&&<p className="shopping-default-saving" role="status"><LoaderCircle className="spin" size={14}/> שומרים…</p>}
