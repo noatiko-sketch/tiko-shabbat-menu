@@ -17,10 +17,10 @@ function load_(ctx){return loadRecord_(ctx).state;}
 function save_(s,file){(file||DriveApp.getFileById(TIKO.state)).setContent(JSON.stringify(s,null,2)+'\n');}
 function readSnapshot_(body){
  var ctx=context_(),day=body.saturday==='upcoming'?ctx.upcoming:body.saturday||ctx.upcoming;
- function prepare(record){var snapshot=TikoDrive.driveSnapshot(record.state,day,ctx,true,!!body.compact);if(body.viewed){TikoDrive.markDriveSeen(record.state,body.actor,day,ctx);snapshot.family_status=day===ctx.upcoming?Object.values(record.state.family_status).filter(function(x){return x.saturday===day;}):[];}return {snapshot:snapshot,changed:JSON.stringify(record.state)!==record.before};}
+ function prepare(record){var snapshot=TikoDrive.driveSnapshot(record.state,day,ctx,!!body.compact);if(body.viewed){TikoDrive.markDriveSeen(record.state,body.actor,day,ctx);snapshot.family_status=day===ctx.upcoming?Object.values(record.state.family_status).filter(function(x){return x.saturday===day;}):[];}return {snapshot:snapshot,changed:JSON.stringify(record.state)!==record.before};}
  var record=loadRecord_(ctx),result=prepare(record);
  if(!result.changed)return result.snapshot;
- // Only a generation, first view of a revision, or normalization needs a write lock.
+ // Only a first view of a revision or a state update needs a write lock.
  // Re-read inside the lock: never persist the earlier unlocked snapshot.
  return locked_(function(){record=loadRecord_(ctx);result=prepare(record);if(result.changed)save_(record.state,record.file);return result.snapshot;});
 }

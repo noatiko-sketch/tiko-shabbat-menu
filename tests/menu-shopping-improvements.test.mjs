@@ -15,7 +15,10 @@ test('assignment and transfer are atomic for same and next week, including clear
   const a={type:'transfer',saturday:ctx.upcoming,meal:'friday',index:0,targetSaturday:day,targetMeal:'lunch',responsible,revision:shot.revision};
   const projected=projectAction(shot,a),result=driveAction(s,a,'נעה',ctx);
   assert.equal(projected.current.friday.dishes.length,0);
-  const moved=result.state.menu_drafts[day].lunch.dishes.find(d=>d?.name==='מרק אפונה');
+  const target=result.state.menu_drafts[day];
+  assert.deepEqual(target.friday.dishes,[]);
+  assert.deepEqual(target.lunch.dishes.map(d=>d?.name),['מרק אפונה']);
+  const moved=target.lunch.dishes[0];
   assert.equal(moved.prepared_by,responsible||undefined);assert.equal(moved.recipe_url,'https://example.com/recipe');
   if(day===ctx.upcoming)assert.equal(projected.current.lunch.dishes[0].prepared_by,responsible||undefined);
   assert.equal(s.menu_drafts[ctx.upcoming].friday.dishes[0].prepared_by,'אמא');

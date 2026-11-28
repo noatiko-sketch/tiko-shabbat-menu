@@ -68,9 +68,8 @@ export function generateDriveMenu(s:State,day:string,ctx:Context,random=Math.ran
  for(const kind of ['friday','lunch'] as const){menu[kind].dishes=categories[kind].map(category=>{const available=foods.filter((d:any)=>mealAllows(d.diet,kind,menu.week)&&!used.has(norm(d.name)));const matches=available.filter((d:Dish)=>d.category===category||(category==='main'&&(d.category==='extra'||!defaultCategories[d.category])));const fresh=matches.filter((d:Dish)=>!recent.has(variant(d.name)));const fallback=category==='dessert'?[]:available.filter((d:Dish)=>d.category!=='dessert');const freshFallback=fallback.filter((d:Dish)=>!recent.has(variant(d.name)));const choices=fresh.length?fresh:matches.length?matches:freshFallback.length?freshFallback:fallback;const dish=choices[Math.min(choices.length-1,Math.floor(random()*choices.length))];if(!dish)return null;used.add(norm(dish.name));return {name:dish.name,category:dish.category,...(dish.category_explicit?{category_explicit:true as const}:{}),updated_by:'אוטומטית',updated_at:ctx.now,...(dish.recipe_url!==undefined?{recipe_url:dish.recipe_url}:{})};});menu[kind].slot_categories=menu[kind].dishes.map((d,i)=>d?.category||categories[kind][i]);}
  menu.approved=false;menu.layout_version=2;return menu;
 }
-export function driveSnapshot(s:State,day:string,ctx:Context,autoGenerate=true,compact=false){
- check(validSaturday(day),'תאריך שבת לא תקין.');let menu=saved(s,day);
- if(!menu&&day===ctx.upcoming&&autoGenerate){menu=generateDriveMenu(s,day,ctx);s.menu_drafts[day]=menu;s.menu_revisions[day]=revision(s,day)+1;}
+export function driveSnapshot(s:State,day:string,ctx:Context,compact=false){
+ check(validSaturday(day),'תאריך שבת לא תקין.');const menu=saved(s,day);
  const current=menu||emptyMenu(day,s.anchor_saturday,s.anchor_week),foods=catalog(s),candidates:Record<string,Dish[]>={},candidateGroups:Record<string,Dish[]>={};
  if(!compact)for(const kind of ['friday','lunch'] as const)current[kind].dishes.forEach((dish,i)=>{const category=dish?.category||current[kind].slot_categories?.[i]||'extra';const key=kind+':'+category;candidates[`${kind}:${i}`]=candidateGroups[key]||=(foods.filter((d:any)=>d.category===category&&mealAllows(d.diet,kind,current.week,current[kind].meal_type)));});
  return {api_version:10,storage:'google-drive',state_id:driveStateId,status:'ready',current:copy(current),previous:compact?undefined:copy(s.history.filter((m:Menu)=>m.saturday<day).sort((a:Menu,b:Menu)=>b.saturday.localeCompare(a.saturday))[0]||null),revision:revision(s,day),catalog_revision:Number(s.catalog_revision||0),has_menu:!!menu,upcoming_saturday:ctx.upcoming,catalog:foods,categories:copy(s.food_categories),candidates,archived_saturdays:Object.keys(s.shabbat_archive||{}).sort(),family_status:day===ctx.upcoming?Object.values(s.family_status).filter((x:any)=>x.saturday===day):[]};
@@ -90,11 +89,11 @@ export function markDriveSeen(s:State,actor:string,day:string,ctx:Context){
 export function driveAction(original:State,action:Action,actor:string,ctx:Context){
  const s=copy(original),day=action.saturday==='upcoming'?ctx.upcoming:action.saturday;check(validSaturday(day),'תאריך שבת לא תקין.');const a={...action,saturday:day,actor};
  check(family.includes(actor as any)||actor==='משפחה','יש לבחור פרופיל.',401);
- if(a.mutationId){check(/^[a-zA-Z0-9-]{8,80}$/.test(a.mutationId),'מזהה פעולה לא תקין.');const receipt=(s.recent_mutations||[]).find((r:any)=>r.id===a.mutationId);if(receipt){check(receipt.actor===actor,'מזהה פעולה לא תקין.',409);return {state:s,changed:false,response:{detail:'השינוי נשמר.',snapshot:driveSnapshot(s,day,ctx,false,a.compact)}};}}
- const complete=()=>{if(a.viewed)markDriveSeen(s,actor,day,ctx);if(a.mutationId){s.recent_mutations=[...(s.recent_mutations||[]),{id:a.mutationId,actor}].slice(-80);}return {state:s,changed:true,response:{detail:a.type==='seen'?'':a.type==='family_approve'?'סימנת שאהבת את התפריט.':'השינוי נשמר.',snapshot:driveSnapshot(s,day,ctx,false,a.compact)}};};
+ if(a.mutationId){check(/^[a-zA-Z0-9-]{8,80}$/.test(a.mutationId),'מזהה פעולה לא תקין.');const receipt=(s.recent_mutations||[]).find((r:any)=>r.id===a.mutationId);if(receipt){check(receipt.actor===actor,'מזהה פעולה לא תקין.',409);return {state:s,changed:false,response:{detail:'השינוי נשמר.',snapshot:driveSnapshot(s,day,ctx,a.compact)}};}}
+ const complete=()=>{if(a.viewed)markDriveSeen(s,actor,day,ctx);if(a.mutationId){s.recent_mutations=[...(s.recent_mutations||[]),{id:a.mutationId,actor}].slice(-80);}return {state:s,changed:true,response:{detail:a.type==='seen'?'':a.type==='family_approve'?'סימנת שאהבת את התפריט.':'השינוי נשמר.',snapshot:driveSnapshot(s,day,ctx,a.compact)}};};
  const bumpCatalog=()=>{s.catalog_revision=Number(s.catalog_revision||0)+1;};
  const allowed=['archive_completed','transfer','assign','set_meal_type','seen','family_unapprove','family_approve','approve','generate','move','add','replace','remove','catalog_save','catalog_remove','category_save','category_remove'];check(allowed.includes(a.type),'פעולה לא מוכרת.');
- if(a.type==='archive_completed'){const count=archiveCompletedShabbats(s,ctx);return {state:s,changed:count>0,response:{detail:'',archived:count,snapshot:driveSnapshot(s,day,ctx,false,a.compact)}};}
+ if(a.type==='archive_completed'){const count=archiveCompletedShabbats(s,ctx);return {state:s,changed:count>0,response:{detail:'',archived:count,snapshot:driveSnapshot(s,day,ctx,a.compact)}};}
  if(['catalog_save','catalog_remove','category_save','category_remove'].includes(a.type)){
  check((a.catalogRevision??0)===Number(s.catalog_revision||0),'מאגר המנות השתנה. יש לרענן לפני השמירה.',409);
  check(a.revision===revision(s,day),'התפריט השתנה. יש לרענן.',409);
@@ -114,7 +113,7 @@ export function driveAction(original:State,action:Action,actor:string,ctx:Contex
   check(Number.isInteger(a.index)&&a.index!==undefined&&a.index>=0,'מיקום מנה לא תקין.');
   let dish=current[a.meal!].dishes[a.index!];check(dish,'המנה כבר הוסרה.');
   if(a.responsible!==undefined)dish=editMenu(current,{...a,type:'assign'})[a.meal!].dishes[a.index!];
-  let target=a.targetSaturday===day?current:copy(saved(s,a.targetSaturday!)||generateDriveMenu(s,a.targetSaturday!,ctx));
+  let target=a.targetSaturday===day?current:copy(saved(s,a.targetSaturday!)||emptyMenu(a.targetSaturday!,s.anchor_saturday,s.anchor_week));
   check(mealAllows(inferDiet(dish!.name),a.targetMeal!,target.week,target[a.targetMeal!].meal_type),'המנה אינה מתאימה לארוחה בשרית או חלבית.');
   check(!target[a.targetMeal!].dishes.some(d=>d&&norm(d.name)===norm(dish!.name)),'המנה כבר מופיעה בארוחת היעד.');
   const source=editMenu(current,{...a,type:'remove'});if(a.targetSaturday===day)target=source;
@@ -126,7 +125,7 @@ export function driveAction(original:State,action:Action,actor:string,ctx:Contex
  }
  if(a.type==='seen'||a.type==='family_approve'||a.type==='family_unapprove'){
  check(day===ctx.upcoming,'צפיות ואהבות זמינות לשבת הקרובה בלבד.');const old=s.family_status[actor];const same=old?.saturday===day;
- if(a.type==='seen'&&old?.saturday===day&&old.seen_revision===revision(s,day))return {state:s,changed:false,response:{detail:'',snapshot:driveSnapshot(s,day,ctx,false,a.compact)}};
+ if(a.type==='seen'&&old?.saturday===day&&old.seen_revision===revision(s,day))return {state:s,changed:false,response:{detail:'',snapshot:driveSnapshot(s,day,ctx,a.compact)}};
  if(a.type==='family_approve'){const approved=editMenu(current,{...a,type:'approve'});s.menu_drafts[day]=approved;approveHistory(s,approved);}
  s.family_status[actor]={name:actor,saturday:day,seen_revision:revision(s,day),seen_at:ctx.now,approved_revision:a.type==='family_unapprove'?-1:a.type==='family_approve'?revision(s,day):same?old.approved_revision:-1,approved_at:a.type==='family_unapprove'?'':a.type==='family_approve'?ctx.now:same?old.approved_at:''};
  }else{

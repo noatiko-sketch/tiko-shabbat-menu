@@ -68,7 +68,7 @@ test('family menu and shopping snapshots never expose private passkey records',(
  const e=server();enroll(e);const ctx={upcoming:'2026-11-07',today:'2026-11-07',now:'2026-11-07T08:00:00Z'},state=e.state;
  state.anchor_saturday='2026-09-26';state.anchor_week=1;state.history=[];state.deliveries=[];
  e.s.TikoDrive.initializeDrive(state,'',ctx);
- for(const snapshot of [e.s.TikoDrive.driveSnapshot(state,ctx.upcoming,ctx,true,true),e.s.TikoDrive.shoppingSnapshot(state)]){
+ for(const snapshot of [e.s.TikoDrive.driveSnapshot(state,ctx.upcoming,ctx,true),e.s.TikoDrive.shoppingSnapshot(state)]){
   assert.equal(snapshot.passkeys_v1,undefined);assert.equal(JSON.stringify(snapshot).includes(state.passkeys_v1.credentials[0].publicKey),false);
  }
 });
