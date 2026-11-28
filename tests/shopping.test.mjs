@@ -122,7 +122,8 @@ test('shopping proxy forwards identity and action to the existing Drive bridge o
  const old=await proxyDriveShopping(new Request('https://example.test/api/shopping',{headers:{'x-family-member':encodeURIComponent('אבא')}}),config,async()=>Response.json({status:'ready',storage:'google-drive',state_id:'1wc9VbyXuLl9QTWVPLUYiU1vUQjz1vmZI'}));assert.equal(old.status,503);assert.match((await old.json()).detail,/Apps Script/);
 });
 test('existing menu mutations preserve the new shopping fields',()=>{
- const ctx={upcoming:'2026-10-31',now},s=initializeDrive(add(state()),'- מרק אפונה',ctx);driveSnapshot(s,ctx.upcoming,ctx);
- const before=structuredClone(s.shopping),result=driveAction(s,{type:'add',saturday:ctx.upcoming,meal:'friday',dish:{name:'סלט חדש',category:'salad'},revision:s.menu_revisions[ctx.upcoming]},'נעה',ctx);
+ const ctx={upcoming:'2026-10-31',now},s=initializeDrive(add(state()),'- מרק אפונה',ctx);
+ const {revision}=driveSnapshot(s,ctx.upcoming,ctx);
+ const before=structuredClone(s.shopping),result=driveAction(s,{type:'add',saturday:ctx.upcoming,meal:'friday',dish:{name:'סלט חדש',category:'salad'},revision},'נעה',ctx);
  assert.deepEqual(result.state.shopping,before);
 });

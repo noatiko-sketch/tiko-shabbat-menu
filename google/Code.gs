@@ -17,10 +17,10 @@ function load_(ctx){return loadRecord_(ctx).state;}
 function save_(s,file){(file||DriveApp.getFileById(TIKO.state)).setContent(JSON.stringify(s,null,2)+'\n');}
 function readSnapshot_(body){
  var ctx=context_(),day=body.saturday==='upcoming'?ctx.upcoming:body.saturday||ctx.upcoming;
- function prepare(record){var snapshot=TikoDrive.driveSnapshot(record.state,day,ctx,true,!!body.compact);if(body.viewed){TikoDrive.markDriveSeen(record.state,body.actor,day,ctx);snapshot.family_status=day===ctx.upcoming?Object.values(record.state.family_status).filter(function(x){return x.saturday===day;}):[];}return {snapshot:snapshot,changed:JSON.stringify(record.state)!==record.before};}
+ function prepare(record){var snapshot=TikoDrive.driveSnapshot(record.state,day,ctx,!!body.compact);if(body.viewed){TikoDrive.markDriveSeen(record.state,body.actor,day,ctx);snapshot.family_status=day===ctx.upcoming?Object.values(record.state.family_status).filter(function(x){return x.saturday===day;}):[];}return {snapshot:snapshot,changed:JSON.stringify(record.state)!==record.before};}
  var record=loadRecord_(ctx),result=prepare(record);
  if(!result.changed)return result.snapshot;
- // Only a generation, first view of a revision, or normalization needs a write lock.
+ // Only a first view of a revision or a state update needs a write lock.
  // Re-read inside the lock: never persist the earlier unlocked snapshot.
  return locked_(function(){record=loadRecord_(ctx);result=prepare(record);if(result.changed)save_(record.state,record.file);return result.snapshot;});
 }
@@ -3531,14 +3531,9 @@ function generateDriveMenu(s, day, ctx, random = Math.random) {
     menu.layout_version = 2;
     return menu;
 }
-function driveSnapshot(s, day, ctx, autoGenerate = true, compact = false) {
+function driveSnapshot(s, day, ctx, compact = false) {
     check(validSaturday(day), 'תאריך שבת לא תקין.');
-    let menu = saved(s, day);
-    if (!menu && day === ctx.upcoming && autoGenerate) {
-        menu = generateDriveMenu(s, day, ctx);
-        s.menu_drafts[day] = menu;
-        s.menu_revisions[day] = revision(s, day) + 1;
-    }
+    const menu = saved(s, day);
     const current = menu || emptyMenu(day, s.anchor_saturday, s.anchor_week), foods = catalog(s), candidates = {}, candidateGroups = {};
     if (!compact)
         for (const kind of ['friday', 'lunch'])
@@ -3583,19 +3578,19 @@ function driveAction(original, action, actor, ctx) {
         const receipt = (s.recent_mutations || []).find((r) => r.id === a.mutationId);
         if (receipt) {
             check(receipt.actor === actor, 'מזהה פעולה לא תקין.', 409);
-            return { state: s, changed: false, response: { detail: 'השינוי נשמר.', snapshot: driveSnapshot(s, day, ctx, false, a.compact) } };
+            return { state: s, changed: false, response: { detail: 'השינוי נשמר.', snapshot: driveSnapshot(s, day, ctx, a.compact) } };
         }
     }
     const complete = () => { if (a.viewed)
         markDriveSeen(s, actor, day, ctx); if (a.mutationId) {
         s.recent_mutations = [...(s.recent_mutations || []), { id: a.mutationId, actor }].slice(-80);
-    } return { state: s, changed: true, response: { detail: a.type === 'seen' ? '' : a.type === 'family_approve' ? 'סימנת שאהבת את התפריט.' : 'השינוי נשמר.', snapshot: driveSnapshot(s, day, ctx, false, a.compact) } }; };
+    } return { state: s, changed: true, response: { detail: a.type === 'seen' ? '' : a.type === 'family_approve' ? 'סימנת שאהבת את התפריט.' : 'השינוי נשמר.', snapshot: driveSnapshot(s, day, ctx, a.compact) } }; };
     const bumpCatalog = () => { s.catalog_revision = Number(s.catalog_revision || 0) + 1; };
     const allowed = ['archive_completed', 'transfer', 'assign', 'set_meal_type', 'seen', 'family_unapprove', 'family_approve', 'approve', 'generate', 'move', 'add', 'replace', 'remove', 'catalog_save', 'catalog_remove', 'category_save', 'category_remove'];
     check(allowed.includes(a.type), 'פעולה לא מוכרת.');
     if (a.type === 'archive_completed') {
         const count = archiveCompletedShabbats(s, ctx);
-        return { state: s, changed: count > 0, response: { detail: '', archived: count, snapshot: driveSnapshot(s, day, ctx, false, a.compact) } };
+        return { state: s, changed: count > 0, response: { detail: '', archived: count, snapshot: driveSnapshot(s, day, ctx, a.compact) } };
     }
     if (['catalog_save', 'catalog_remove', 'category_save', 'category_remove'].includes(a.type)) {
         check((a.catalogRevision ?? 0) === Number(s.catalog_revision || 0), 'מאגר המנות השתנה. יש לרענן לפני השמירה.', 409);
@@ -3642,7 +3637,7 @@ function driveAction(original, action, actor, ctx) {
         check(dish, 'המנה כבר הוסרה.');
         if (a.responsible !== undefined)
             dish = editMenu(current, { ...a, type: 'assign' })[a.meal].dishes[a.index];
-        let target = a.targetSaturday === day ? current : copy(saved(s, a.targetSaturday) || generateDriveMenu(s, a.targetSaturday, ctx));
+        let target = a.targetSaturday === day ? current : copy(saved(s, a.targetSaturday) || emptyMenu(a.targetSaturday, s.anchor_saturday, s.anchor_week));
         check(mealAllows(inferDiet(dish.name), a.targetMeal, target.week, target[a.targetMeal].meal_type), 'המנה אינה מתאימה לארוחה בשרית או חלבית.');
         check(!target[a.targetMeal].dishes.some(d => d && norm(d.name) === norm(dish.name)), 'המנה כבר מופיעה בארוחת היעד.');
         const source = editMenu(current, { ...a, type: 'remove' });
@@ -3665,7 +3660,7 @@ function driveAction(original, action, actor, ctx) {
         const old = s.family_status[actor];
         const same = old?.saturday === day;
         if (a.type === 'seen' && old?.saturday === day && old.seen_revision === revision(s, day))
-            return { state: s, changed: false, response: { detail: '', snapshot: driveSnapshot(s, day, ctx, false, a.compact) } };
+            return { state: s, changed: false, response: { detail: '', snapshot: driveSnapshot(s, day, ctx, a.compact) } };
         if (a.type === 'family_approve') {
             const approved = editMenu(current, { ...a, type: 'approve' });
             s.menu_drafts[day] = approved;

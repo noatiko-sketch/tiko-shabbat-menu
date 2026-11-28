@@ -2,12 +2,22 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {initializeDrive,driveSnapshot,driveAction,markDriveSeen} from '../lib/drive-engine.ts';
+import {initializeDrive,driveSnapshot,driveAction,generateDriveMenu,markDriveSeen} from '../lib/drive-engine.ts';
 import {MenuMutations} from '../lib/menu-mutations.ts';
 const ctx={upcoming:'2026-10-24',now:'2026-10-20T17:00:00Z'};
-function state(){const s=initializeDrive({anchor_saturday:'2026-09-26',anchor_week:1,history:[],deliveries:[{sent_at:'preserve'}],manual_dishes:[],custom_dishes:[],excluded_dishes:[],unknown:{keep:true}},Array.from({length:160},(_,i)=>'- סלט ירקות '+i).join('\n'),ctx);driveSnapshot(s,ctx.upcoming,ctx);return s;}
+function state(){const s=initializeDrive({anchor_saturday:'2026-09-26',anchor_week:1,history:[],deliveries:[{sent_at:'preserve'}],manual_dishes:[],custom_dishes:[],excluded_dishes:[],unknown:{keep:true}},Array.from({length:160},(_,i)=>'- סלט ירקות '+i).join('\n'),ctx);s.menu_drafts[ctx.upcoming]=generateDriveMenu(s,ctx.upcoming,ctx,()=>0);s.menu_revisions[ctx.upcoming]=1;return s;}
 const action=(s,a)=>({saturday:ctx.upcoming,revision:s.menu_revisions[ctx.upcoming],catalogRevision:s.catalog_revision||0,compact:true,...a});
 function harness(original){let live=structuredClone(original),held=false,mutateBeforeLock=null;const counts={reads:0,foods:0,writes:0,locks:0};const sandbox={console,Date,Utilities:{formatDate:()=> '2026-10-20'},PropertiesService:{getScriptProperties:()=>({getProperty:()=> 't'.repeat(48)})},ContentService:{MimeType:{JSON:'json'},createTextOutput:text=>({setMimeType:()=>JSON.parse(text)})},DriveApp:{getFileById:id=>{if(id==='1eVmval7caUC1sHWiyrozuA0DpqyX1qoH'){counts.foods++;return {getBlob:()=>({getDataAsString:()=>''})};}return {getBlob:()=>{counts.reads++;return {getDataAsString:()=>JSON.stringify(live)};},setContent:text=>{assert.ok(held,'every shared write holds the script lock');counts.writes++;live=JSON.parse(text);}};}},LockService:{getScriptLock:()=>({tryLock:()=>{counts.locks++;held=true;if(mutateBeforeLock){live=mutateBeforeLock(live);mutateBeforeLock=null;}return true;},releaseLock:()=>{held=false;}})}};vm.createContext(sandbox);vm.runInContext(fs.readFileSync(new URL('../google/Code.gs',import.meta.url),'utf8'),sandbox);return {counts,live:()=>live,race:fn=>mutateBeforeLock=fn,post:body=>sandbox.doPost({postData:{contents:JSON.stringify({token:'t'.repeat(48),actor:'נעה',...body})}})};}
+test('Apps Script reads a new Saturday without generating or persisting a menu',()=>{
+ const s=state();s.menu_drafts={};s.menu_revisions={};
+ const h=harness(s),result=h.post({type:'snapshot',saturday:ctx.upcoming,compact:true});
+ assert.equal(result.status,'ready');
+ assert.equal(result.has_menu,false);
+ assert.deepEqual(result.current.friday.dishes,[]);
+ assert.deepEqual(result.current.lunch.dishes,[]);
+ assert.deepEqual(h.counts,{reads:1,foods:0,writes:0,locks:0});
+ assert.deepEqual(h.live(),s);
+});
 test('unchanged shared reads use one fresh state read, no food reads, writes or locks',()=>{
  const s=state();markDriveSeen(s,'נעה',ctx.upcoming,ctx);const h=harness(s);
  for(let i=0;i<4;i++)assert.equal(h.post({type:'snapshot',saturday:ctx.upcoming,compact:true,viewed:true}).status,'ready');
@@ -39,7 +49,7 @@ test('simultaneous family menu and catalog edits reject stale revisions without 
  assert.equal(h.post({...move,actor:'אבא'}).http_status,409);assert.equal(h.counts.writes,2);
 });
 test('compact payload preserves current shared fields and omits repeated candidate/history copies',()=>{
- const s=state(),full=driveSnapshot(s,ctx.upcoming,ctx),compact=driveSnapshot(s,ctx.upcoming,ctx,true,true);
+ const s=state(),full=driveSnapshot(s,ctx.upcoming,ctx),compact=driveSnapshot(s,ctx.upcoming,ctx,true);
  for(const key of ['current','revision','catalog_revision','catalog','categories','family_status','storage','state_id'])assert.deepEqual(compact[key],full[key]);
  assert.equal(compact.previous,undefined);assert.deepEqual(compact.candidates,{});
  const fullBytes=Buffer.byteLength(JSON.stringify(full)),compactBytes=Buffer.byteLength(JSON.stringify(compact));
